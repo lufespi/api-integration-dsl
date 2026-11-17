@@ -1,0 +1,11 @@
+# Normaliza finais de linha para LF em todas as plataformas (inclusive Windows).
+# Importante para o Lexer: números de linha/coluna nos erros devem ser
+# idênticos em qualquer máquina, e o Dockerfile precisa de LF.
+* text=auto eol=lf
+
+*.dsl text eol=lf
+*.php text eol=lf
+*.md  text eol=lf
+*.xml text eol=lf
+*.yaml text eol=lf
+Dockerfile text eol=lf

@@ -1,0 +1,23 @@
+# Dependências do Composer (reinstaladas com `composer install`)
+/vendor/
+
+# Saída do compilador: arquivos PHP gerados não são versionados
+/output/*
+!/output/.gitkeep
+
+# Cache do PHPUnit
+/.phpunit.cache/
+/.phpunit.result.cache
+
+# Relatórios de cobertura
+/coverage/
+
+# Variáveis locais do Docker Compose (ex.: UID/GID)
+/.env
+
+# Arquivos de editor e sistema operacional
+/.idea/
+/.vscode/
+*.swp
+.DS_Store
+Thumbs.db
