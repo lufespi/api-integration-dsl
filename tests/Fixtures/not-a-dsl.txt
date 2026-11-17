@@ -1,0 +1,1 @@
+Arquivo com extensão diferente de .dsl, usado para testar a rejeição pela CLI.
