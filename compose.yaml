@@ -1,0 +1,13 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        # No Linux, defina UID/GID no arquivo .env se seu usuário não for 1000.
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    image: api-integration-dsl-dev
+    working_dir: /app
+    volumes:
+      - .:/app

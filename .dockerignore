@@ -1,0 +1,10 @@
+# O Dockerfile não copia o código-fonte (ele é montado via bind mount);
+# este arquivo apenas mantém o contexto de build pequeno.
+.git
+vendor
+output
+.phpunit.cache
+coverage
+.env
+.idea
+.vscode
