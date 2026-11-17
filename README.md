@@ -75,32 +75,59 @@ exatamente as mesmas versões.
 Os comandos são os mesmos no Linux (bash/zsh) e no Windows (PowerShell).
 
 ```bash
-docker compose build                          # cria a imagem (PHP 8.3 CLI + Composer)
+docker compose build                          # cria a imagem (PHP 8.3 CLI + Composer 2)
 docker compose run --rm app php -v            # confere a versão do PHP
-docker compose run --rm app composer install  # instala as dependências em vendor/
+docker compose run --rm app composer install  # instala as dependências do composer.lock em vendor/
 docker compose run --rm app composer test     # executa os testes
 docker compose run --rm app php main.php --help
 docker compose run --rm app php main.php examples/valid/exemplo1.dsl
 ```
 
+Rode `composer install` de novo sempre que o `composer.lock` mudar (por
+exemplo, depois de um `git pull`). Rode `docker compose build` de novo quando
+`docker/Dockerfile` mudar.
+
+Verificações extras, as mesmas que o CI executa:
+
+```bash
+docker compose run --rm app composer validate --strict      # composer.json válido e composer.lock sincronizado
+docker compose run --rm app composer check-platform-reqs    # PHP e extensões exigidos pelas dependências
+docker compose run --rm app php -m                          # lista as extensões disponíveis
+```
+
+A imagem oficial `php:8.3-cli` já inclui todas as extensões usadas pelo
+projeto, pelo PHPUnit e pelo futuro código gerado: `curl`, `dom`, `json`,
+`libxml`, `mbstring`, `tokenizer`, `xml` e `xmlwriter`. O Dockerfile só
+acrescenta `git` e `unzip`, que o Composer usa para baixar e extrair pacotes.
+
 Para adicionar ou atualizar dependências, também use o contêiner
 (ex.: `docker compose run --rm app composer require --dev <pacote>`), após
-acordo do grupo.
+acordo do grupo, e versione `composer.json` e `composer.lock` no mesmo commit.
 
 O projeto é montado em `/app` dentro do contêiner (bind mount): edite os
 arquivos normalmente no host. Há um único serviço (`app`), sem portas expostas.
 
-**Linux, usuário com UID diferente de 1000:** para que `vendor/` e `output/`
-pertençam ao seu usuário, crie um `.env` antes do build:
+O contêiner roda com um usuário não-root (`app`), com UID/GID configuráveis.
+
+**Linux (Docker Engine + Compose):** se o seu usuário não tiver UID 1000
+(confira com `id -u`), crie um `.env` antes do build. Assim `vendor/` e
+`output/` pertencem ao seu usuário, e não ao root:
 
 ```bash
 printf "UID=%s\nGID=%s\n" "$(id -u)" "$(id -g)" > .env
 docker compose build
 ```
 
-**Windows:** para melhor desempenho do bind mount, prefira clonar o repositório
-dentro do WSL 2. O `.gitattributes` mantém finais de linha LF em todas as
-plataformas.
+**Windows (Docker Desktop):**
+
+- Use o Docker Desktop com o backend WSL 2 (padrão nas versões atuais).
+- Não é preciso criar `.env`; os valores padrão funcionam.
+- Para melhor desempenho do bind mount, clone o repositório dentro do sistema
+  de arquivos do WSL (ex.: `~/projetos`, não `C:\...`) e rode os comandos no
+  terminal do WSL. Pelo PowerShell os comandos também funcionam, porém mais
+  lentos.
+- O `.gitattributes` força finais de linha LF, então não é preciso ajustar o
+  `core.autocrlf`.
 
 **Se o build falhar com `Temporary failure resolving 'deb.debian.org'`** (ou o
 `composer install` não alcançar o Packagist): o DNS que o Docker herdou da
@@ -147,10 +174,48 @@ docker compose run --rm app composer test:integration   # apenas integração (C
 
 Os testes não acessam a rede nem APIs externas.
 
+## Integração contínua (GitHub Actions)
+
+O workflow [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml) roda
+automaticamente em todo **Pull Request para `main`** e em todo **push para
+`main`**. O resultado aparece na aba *Checks* do PR e na aba *Actions* do
+repositório.
+
+O CI roda direto no runner Ubuntu do GitHub, sem Docker, com PHP 8.3 e as
+mesmas extensões da imagem de desenvolvimento. Assim ele fica mais simples e
+rápido; o Docker continua sendo o ambiente padrão local.
+
+| Passo | Comando | Falha quando |
+|---|---|---|
+| 1. Checkout | — | — |
+| 2. PHP 8.3 + Composer 2 | `setup-php` | a action não consegue preparar o PHP (raro; rode de novo) |
+| 3. Validar Composer | `composer validate --strict` | `composer.json` inválido ou `composer.lock` desatualizado em relação a ele |
+| 4. Instalar dependências | `composer install` | `composer.lock` incompatível com PHP 8.3 ou pacote indisponível |
+| 5. Requisitos de plataforma | `composer check-platform-reqs` | falta extensão ou versão de PHP exigida por alguma dependência |
+| 6. Testes | `composer test` | algum teste PHPUnit falhou, gerou erro, aviso ou foi marcado como arriscado |
+
+O PR só deve ser integrado com o check **CI** verde. O workflow usa só
+permissão de leitura (`contents: read`), não usa secrets e não publica nada.
+
+**Como interpretar uma falha:**
+
+1. No PR, clique em *Details* ao lado do check **CI** e abra o passo marcado
+   com ❌. O log mostra o comando e a mensagem de erro.
+2. Reproduza localmente com o mesmo comando no contêiner, por exemplo
+   `docker compose run --rm app composer test`.
+3. Causas mais comuns:
+   - **passo 3:** alguém editou o `composer.json` sem atualizar o lock. Rode
+     `docker compose run --rm app composer update --lock` e versione o
+     `composer.lock`;
+   - **passo 6:** leia o nome do teste e a asserção que falhou no log; o
+     PHPUnit mostra o valor esperado e o obtido.
+4. Corrija, faça push na mesma branch e o CI roda de novo sozinho.
+
 ## Estrutura de diretórios
 
 ```text
 api-integration-dsl/
+├── .github/workflows/ci.yaml  integração contínua (GitHub Actions)
 ├── docker/Dockerfile        imagem de desenvolvimento (PHP 8.3 CLI + Composer)
 ├── docs/                    arquitetura, contrato da AST, gramática, tokens
 ├── examples/
@@ -185,6 +250,7 @@ api-integration-dsl/
 | PHPUnit e testes de infraestrutura | ✅ Pronto |
 | CLI: ajuda, validação de argumentos, códigos de saída | ✅ Pronto |
 | Ambiente Docker de desenvolvimento | ✅ Pronto |
+| Integração contínua (GitHub Actions) | ✅ Configurada |
 | Documentação de arquitetura e convenções | ✅ Pronto |
 | Contrato da AST | 📝 Proposta em discussão |
 | Tokens e gramática | 📝 Escopo preliminar |

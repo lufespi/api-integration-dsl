@@ -158,6 +158,11 @@ apenas carrega o autoload e delega a essa classe.
 - PHPUnit 12 (compatível com PHP 8.3).
 - `composer.json` fixa `config.platform.php = 8.3.0`, garantindo que o
   `composer.lock` corresponda ao PHP da imagem.
+- **Integração contínua** (`.github/workflows/ci.yaml`): em todo PR e push para
+  `main`, roda direto no runner Ubuntu com PHP 8.3 e as mesmas extensões da
+  imagem, executando `composer validate --strict`, `composer install` (a partir
+  do lock), `composer check-platform-reqs` e `composer test`. Permissão
+  `contents: read`, sem secrets, sem deploy e sem publicação de artefatos.
 
 ## 9. Registro de decisões
 
@@ -172,3 +177,4 @@ apenas carrega o autoload e delega a essa classe.
 | D7 | Finais de linha LF (`.gitattributes`) | Linha/coluna de erros iguais em Windows e Linux |
 | D8 | Desenvolvimento 100% via Docker (PHP, Composer, PHPUnit) | Mesmas versões para os quatro integrantes, em Windows e Linux |
 | D9 | Código gerado não depende de Docker | Deve rodar em qualquer PHP com `curl` e `json` |
+| D10 | CI direto no runner Ubuntu (PHP 8.3 via `setup-php`), sem Docker | Mais simples e rápido; mesmos comandos e extensões do ambiente Docker |
