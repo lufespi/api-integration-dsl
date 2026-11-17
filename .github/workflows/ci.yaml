@@ -1,0 +1,50 @@
+# Integração contínua: valida o Composer e executa a suíte PHPUnit.
+# Roda direto no runner Ubuntu (sem Docker), com PHP 8.3 e as mesmas
+# extensões da imagem de desenvolvimento (docker/Dockerfile).
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Um novo push na mesma branch/PR cancela a execução anterior ainda em andamento.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tests:
+    name: PHP 8.3 · Composer + PHPUnit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout do repositório
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Preparar PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: curl, dom, json, libxml, mbstring, xml, xmlwriter
+          tools: composer:v2
+          coverage: none
+
+      - name: Validar composer.json e composer.lock
+        run: composer validate --strict
+
+      - name: Instalar dependências a partir do composer.lock
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      - name: Verificar requisitos de plataforma
+        run: composer check-platform-reqs
+
+      - name: Executar suíte PHPUnit
+        run: composer test
