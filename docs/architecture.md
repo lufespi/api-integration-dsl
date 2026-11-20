@@ -68,18 +68,27 @@ tokens, em [`tokens.md`](tokens.md); a gramática, em [`grammar.md`](grammar.md)
 
 ## 4. Tratamento de erros
 
-**Proposta:** Lexer e Parser lançam exceções específicas, definidas em
-`src/Exceptions/`, contendo mensagem, linha e coluna. A CLI captura essas
-exceções e encerra com o código de saída adequado.
-
-Hierarquia sugerida (ainda **não implementada**, para não antecipar decisões dos
-responsáveis):
+Lexer e Parser lançam exceções específicas, definidas em `src/Exceptions/`,
+contendo mensagem, linha e coluna. A CLI captura essas exceções e encerra com
+o código de saída adequado.
 
 ```text
-CompilerException                 (base, contém linha/coluna opcionais)
-├── LexicalException              (ex.: caractere inválido, string não terminada)
-└── SyntaxException               (ex.: token inesperado, bloco não fechado)
+CompilerException                 (base, contém linha/coluna opcionais)   ✅ implementada
+├── LexicalException              (ex.: caractere inválido, string não terminada)   ⏳ a cargo do Lexer
+└── SyntaxException               (ex.: token inesperado, bloco não fechado)   ✅ implementada
 ```
+
+- `CompilerException` expõe `getSourceLine()`/`getSourceColumn()` (os nomes
+  evitam conflito com `Exception::getLine()`, que é `final` e indica a linha
+  do código PHP).
+- `SyntaxException` reúne **todos** os erros sintáticos da análise
+  (`errors()`, lista de `App\Parser\SyntaxError`), pois o Parser se recupera
+  em modo pânico; a mensagem já vem formatada para o usuário (ver
+  [`grammar.md`](grammar.md), seção 12). A CLI só precisa imprimir
+  `getMessage()` em stderr e devolver `EXIT_COMPILATION_ERROR`.
+- Violações de contrato entre etapas (ex.: lista de tokens sem `EOF`) não são
+  erros do programa `.dsl`: o Parser lança `InvalidArgumentException` ou
+  `LogicException`, tratadas pela CLI como erro interno.
 
 Códigos de saída da CLI (já implementados em `App\Cli\Application`):
 
@@ -178,3 +187,7 @@ apenas carrega o autoload e delega a essa classe.
 | D8 | Desenvolvimento 100% via Docker (PHP, Composer, PHPUnit) | Mesmas versões para os quatro integrantes, em Windows e Linux |
 | D9 | Código gerado não depende de Docker | Deve rodar em qualquer PHP com `curl` e `json` |
 | D10 | CI direto no runner Ubuntu (PHP 8.3 via `setup-php`), sem Docker | Mais simples e rápido; mesmos comandos e extensões do ambiente Docker |
+| D11 | Parser descendente recursivo preditivo LL(1) | Gramática pequena e iniciada por palavras reservadas; código espelha a GLC; mensagens de erro precisas ([`grammar.md`](grammar.md), seção 7) |
+| D12 | Recuperação de erros sintáticos em modo pânico, sincronizando em `api`/`integration` | Relatar vários erros independentes em uma execução, sem erros em cascata |
+| D13 | AST em classes `readonly` com `toArray()` | Tipagem forte para o Generator, sem perder o formato de arrays proposto ([`ast-contract.md`](ast-contract.md)) |
+| D14 | Contrato de tokens (`Token`, `TokenType`) fixado em `src/Lexer/` antes do Lexer | Permitir desenvolver e testar o Parser em paralelo; testes usam um tokenizador mínimo de apoio em `tests/Support/` |
