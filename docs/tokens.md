@@ -47,14 +47,43 @@ Um token final `EOF` facilita o trabalho do Parser.
 Cada erro deve informar linha e coluna. Exemplos ficam em
 `examples/invalid/lexical/`.
 
-## 5. Pendências
+## 5. Contrato com o Parser (implementado)
+
+Para que o Analisador Sintático pudesse ser implementado e testado, a
+estrutura do token e o conjunto de terminais exigidos pela gramática foram
+fixados em código, **sem implementar o Lexer** (que continua a cargo do
+responsável pelo Analisador Léxico):
+
+- [`src/Lexer/Token.php`](../src/Lexer/Token.php): classe `readonly` com
+  `type`, `lexeme`, `line`, `column` e **`value`** — o valor semântico dos
+  literais (texto sem aspas e com escapes resolvidos; `int`; `float`), que o
+  Parser usa para montar a AST;
+- [`src/Lexer/TokenType.php`](../src/Lexer/TokenType.php): enum com um caso
+  por terminal da gramática e `TokenType::reservedWords()`, tabela
+  lexema → tipo das 22 palavras reservadas (útil para distinguir palavras
+  reservadas de identificadores).
+
+O que o Parser espera do Lexer:
+
+1. Uma `list<Token>` terminada por **exatamente um** token `TokenType::Eof`.
+2. Espaços e comentários já descartados.
+3. Palavras reservadas sensíveis a maiúsculas (`api` ≠ `Api`; `GET` ≠ `get`).
+4. Literais numéricos **sem sinal** (`-5` = operador `-` + literal `5`).
+5. `value` preenchido em `StringLiteral` (string), `IntLiteral` (int) e
+   `FloatLiteral` (float).
+
+A lista completa de terminais e seu papel na gramática está em
+[`grammar.md`](grammar.md), seção 3. O responsável pelo Lexer pode ajustar
+estes arquivos, desde que combine a mudança com o Parser.
+
+## 6. Pendências
 
 | # | Questão |
 |---|---|
-| T1 | Lista final de palavras reservadas |
-| T2 | Palavras reservadas diferenciam maiúsculas/minúsculas? |
-| T3 | Métodos HTTP como palavras reservadas ou identificadores validados pelo Parser? |
-| T4 | URLs como string comum ou token próprio? |
+| T1 | ~~Lista final de palavras reservadas~~ — definida pela gramática (G1): ver seção 5 e `TokenType::reservedWords()` |
+| T2 | ~~Palavras reservadas diferenciam maiúsculas/minúsculas?~~ — sim (proposta da gramática) |
+| T3 | ~~Métodos HTTP como palavras reservadas ou identificadores validados pelo Parser?~~ — palavras reservadas, um tipo de token por método |
+| T4 | ~~URLs como string comum ou token próprio?~~ — string comum (`StringLiteral`); o Parser valida o `/` inicial dos caminhos |
 | T5 | Sintaxe de comentários |
-| T6 | Literais numéricos/booleanos e operadores (dependem de P3/P4 em `ast-contract.md`) |
+| T6 | ~~Literais numéricos/booleanos e operadores~~ — definidos pela gramática (G5/G6); ver `grammar.md`, seção 3 |
 | T7 | Codificação: suporte a UTF-8 em strings e identificadores? |

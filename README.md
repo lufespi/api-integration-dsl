@@ -5,8 +5,9 @@ e compilá-las para código PHP executável.
 
 Projeto acadêmico da disciplina de **Linguagens Formais e Compiladores - UNISC**.
 
-> **Estado atual:** fundação do projeto (estrutura, CLI, testes e documentação).
-> O Lexer, o Parser e o Gerador **ainda não foram implementados**. Ver
+> **Estado atual:** fundação do projeto (estrutura, CLI, testes e documentação),
+> gramática, Parser e AST implementados. O Lexer e o Gerador **ainda não foram
+> implementados** e o pipeline ainda não está integrado à CLI. Ver
 > [Estado de implementação](#estado-de-implementação).
 
 ## Objetivo acadêmico
@@ -31,8 +32,24 @@ Um programa `.dsl` declara:
 O compilador gera um script PHP que, usando cURL, faz a requisição à origem,
 interpreta a resposta JSON e encaminha os dados ao destino.
 
-A sintaxe ainda está em definição. Há um esboço **não normativo** em
-[docs/grammar.md](docs/grammar.md).
+Cada integração pode ainda filtrar registros com uma condição (`when`) e montar
+o registro de destino campo a campo, com tipos de dados (`map`):
+
+```text
+integration sincronizarAssinantes {
+    from Crm.listContacts as contato;
+    to Mailer.upsertSubscriber;
+    when contato.email != null && contato.optIn;
+    map {
+        email: string = contato.email;
+        age: int = 2026 - contato.birthYear;
+    }
+}
+```
+
+A gramática completa (GLC, precedência de operadores, análise LL(1) e erros
+sintáticos) está em [docs/grammar.md](docs/grammar.md); exemplos em
+[examples/](examples/).
 
 ## Tecnologias
 
@@ -233,7 +250,8 @@ api-integration-dsl/
 ├── tests/
 │   ├── Unit/
 │   ├── Integration/
-│   └── Fixtures/
+│   ├── Fixtures/
+│   └── Support/             auxiliares de teste (tokenizador mínimo, impressão de expressões)
 ├── output/                  código PHP gerado (não versionado)
 ├── main.php                 ponto de entrada da CLI
 ├── compose.yaml
@@ -252,13 +270,15 @@ api-integration-dsl/
 | Ambiente Docker de desenvolvimento | ✅ Pronto |
 | Integração contínua (GitHub Actions) | ✅ Configurada |
 | Documentação de arquitetura e convenções | ✅ Pronto |
-| Contrato da AST | 📝 Proposta em discussão |
-| Tokens e gramática | 📝 Escopo preliminar |
+| Gramática (GLC) e especificação do Parser | ✅ Pronto ([docs/grammar.md](docs/grammar.md)) |
+| Parser (descendente recursivo LL(1), erros sintáticos) | ✅ Pronto (`src/Parser`) |
+| AST | ✅ Implementada (`src/Ast`); aguarda validação do Generator |
+| Contrato de tokens (`Token`, `TokenType`) | ✅ Pronto (`src/Lexer`); especificação do Lexer em [docs/tokens.md](docs/tokens.md) |
 | Lexer | ⏳ Não iniciado |
-| Parser | ⏳ Não iniciado |
 | Generator | ⏳ Não iniciado |
 | Integração do pipeline na CLI | ⏳ Não iniciado |
-| Exemplos `.dsl` | ⏳ Aguardando definição da sintaxe |
+| Exemplos `.dsl` válidos e com erros sintáticos | ✅ Prontos (`examples/valid`, `examples/invalid/syntactic`) |
+| Exemplos `.dsl` com erros léxicos | ⏳ Aguardando o Lexer |
 
 ## Equipe e responsabilidades
 
