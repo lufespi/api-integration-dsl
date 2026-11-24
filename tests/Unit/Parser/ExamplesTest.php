@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Tests\Unit\Parser;
 
 use App\Exceptions\SyntaxException;
+use App\Lexer\Lexer;
 use App\Parser\Parser;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Tests\Support\SourceTokenizer;
 
 /**
  * Usa os programas de examples/ como fixtures do Parser
@@ -35,7 +35,7 @@ final class ExamplesTest extends TestCase
     #[DataProvider('validExamples')]
     public function testValidExampleIsAccepted(string $path): void
     {
-        $program = (new Parser(SourceTokenizer::tokenize((string) file_get_contents($path))))->parse();
+        $program = (new Parser((new Lexer((string) file_get_contents($path)))->tokenize()))->parse();
 
         self::assertNotEmpty($program->apis);
         self::assertNotEmpty($program->integrations);
@@ -73,7 +73,7 @@ final class ExamplesTest extends TestCase
         self::assertNotEmpty($expected, 'O exemplo deve documentar ao menos um "// Erro esperado:".');
 
         try {
-            (new Parser(SourceTokenizer::tokenize($source)))->parse();
+            (new Parser((new Lexer($source))->tokenize()))->parse();
             self::fail('O exemplo deveria conter erro sintático: ' . $path);
         } catch (SyntaxException $exception) {
             self::assertSame(
@@ -103,7 +103,7 @@ final class ExamplesTest extends TestCase
     public function testPositionsDocumentedInAstContractMatchExample3(): void
     {
         $source = (string) file_get_contents(self::EXAMPLES . '/valid/exemplo3.dsl');
-        $program = (new Parser(SourceTokenizer::tokenize($source)))->parse();
+        $program = (new Parser((new Lexer($source))->tokenize()))->parse();
 
         $header = $program->apis[0]->headers[0]->toArray();
         self::assertSame([12, 5], [$header['line'], $header['column']]);

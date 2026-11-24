@@ -13,19 +13,18 @@ use App\Ast\Expression\Literal;
 use App\Ast\Expression\LiteralType;
 use App\Ast\HttpMethod;
 use App\Ast\Program;
+use App\Lexer\Lexer;
 use App\Parser\Parser;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use Tests\Support\ExpressionPrinter;
-use Tests\Support\SourceTokenizer;
 
 /**
  * Testes do Analisador Sintático com programas válidos: estrutura da AST,
  * cláusulas opcionais, tipos de dados, literais, precedência e
  * associatividade dos operadores.
  *
- * Os tokens são produzidos por Tests\Support\SourceTokenizer, um tokenizador
- * mínimo de apoio (o Lexer do compilador é outro componente).
+ * Os tokens são produzidos pelo Lexer do compilador (App\Lexer\Lexer).
  */
 final class ParserTest extends TestCase
 {
@@ -38,7 +37,7 @@ final class ParserTest extends TestCase
      */
     private function parse(string $source): Program
     {
-        return (new Parser(SourceTokenizer::tokenize($source)))->parse();
+        return (new Parser((new Lexer($source))->tokenize()))->parse();
     }
 
     /**
@@ -397,7 +396,7 @@ final class ParserTest extends TestCase
     {
         // Colunas: "x" = 40, ">=" = 44, "len" = 47.
         $source ='integration t { from A.b; to C.d; when x.y >= len(z); }';
-        $condition = (new Parser(SourceTokenizer::tokenize($source)))->parse()->integrations[0]->condition;
+        $condition = (new Parser((new Lexer($source))->tokenize()))->parse()->integrations[0]->condition;
 
         self::assertInstanceOf(BinaryExpression::class, $condition);
         self::assertSame([1, 44], [$condition->line, $condition->column]);
@@ -435,7 +434,7 @@ final class ParserTest extends TestCase
      */
     public function testParseCanBeCalledMoreThanOnce(): void
     {
-        $parser = new Parser(SourceTokenizer::tokenize('integration t { from A.b; to C.d; }'));
+        $parser = new Parser((new Lexer('integration t { from A.b; to C.d; }'))->tokenize());
 
         self::assertEquals($parser->parse(), $parser->parse());
     }

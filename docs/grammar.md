@@ -95,7 +95,7 @@ Outras decisões:
   qualquer palavra reservada é aceita como nome de campo (ex.:
   `pedido.from`, `item.type`), porque campos JSON com esses nomes são comuns.
 - **Comentários** são descartados pelo Lexer e não aparecem na gramática. Os
-  exemplos usam `// ...` (sintaxe final a cargo do Lexer, pendência T5).
+  exemplos usam `// ...`; o Lexer aceita também `#` e `/* */` ([`tokens.md`](tokens.md), seção 4).
 
 ## 3. Terminais
 
@@ -627,7 +627,7 @@ confere que o Parser produz exatamente esses erros.
 | Comandos específicos do domínio | `api`, `base`, `header`, `endpoint`, `integration`, `from`, `to`, `map`, métodos HTTP |
 | Estrutura composta/repetitiva/condicional | **Condicional**: `when`; **compostas**: blocos `api`, `integration` e `map`, listas de endpoints/cabeçalhos/mapeamentos |
 | Agrupamento/delimitação | `{ }` para blocos, `( )` em expressões e chamadas, `;` como terminador |
-| Comentários | `// ...`, descartados pelo Lexer |
+| Comentários | `// ...`, `# ...` e `/* ... */`, descartados pelo Lexer |
 
 | Critério de avaliação (Analisador Sintático) | Entregue |
 |---|---|
@@ -640,7 +640,7 @@ confere que o Parser produz exatamente esses erros.
 
 | # | Questão | Com quem |
 |---|---|---|
-| G10 | Sintaxe definitiva dos comentários (`//`, `#` ou ambos) — afeta apenas os exemplos | Lexer (T5) |
-| G11 | Sequências de escape aceitas em `TEXTO` | Lexer |
+| G10 | ~~Sintaxe definitiva dos comentários~~ — `//`, `#` e `/* */` (ver [`tokens.md`](tokens.md), seção 4) | Lexer (T5) |
+| G11 | ~~Sequências de escape aceitas em `TEXTO`~~ — `\"`, `\\`, `\n` e `\t`; qualquer outra é erro léxico | Lexer |
 | G12 | Verificação semântica (referências, duplicidades, aridade de funções) | Grupo (P2) |
 | G13 | Lista de funções embutidas (sugestão: `env`, `upper`, `lower`, `now`) | Gerador |
