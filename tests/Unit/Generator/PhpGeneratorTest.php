@@ -469,4 +469,137 @@ final class PhpGeneratorTest extends TestCase
         $wrongType = $script->call('return dsl_api_headers_1();', ['TOKEN' => 'ok']);
         self::assertSame('cabeçalho "X-Flag": valor bool inválido, esperado texto ou número', $wrongType['error']);
     }
+    /**
+     * Programa com a API de origem informada, a API de destino fixa e uma
+     * integração entre elas. A origem é declarada na linha 3, coluna 1, e
+     * seu endpoint na linha 4, coluna 5 (para conferir a posição dos erros).
+     */
+    private static function programWithSource(string $baseUrl, string $path = '/items'): Program
+    {
+        return new Program(
+            [
+                new Api('Src', $baseUrl, [], [new Endpoint('list', HttpMethod::Get, $path, 4, 5)], 3, 1),
+                Ast::api('Dst', 'https://dst.example.com', [Ast::endpoint('create', HttpMethod::Post, '/records')]),
+            ],
+            [Ast::integration('sync', 'Src.list', 'Dst.create')],
+        );
+    }
+
+    /**
+     * FIX-01: endereços-base e caminhos válidos compõem a URL esperada
+     * (caminho do endereço-base preservado, query fixa no endpoint mantida,
+     * localhost, IPv4, IPv6 e portas explícitas aceitos).
+     */
+    #[DataProvider('validUrls')]
+    public function testValidBaseUrlAndPathComposeTheExpectedUrl(string $baseUrl, string $path, string $expected): void
+    {
+        $code = $this->generate(self::programWithSource($baseUrl, $path));
+
+        self::assertValidPhp($code);
+        self::assertStringContainsString('sourceUrl: ' . var_export($expected, true) . ',', $code);
+    }
+
+    /** @return iterable<string, array{string, string, string}> */
+    public static function validUrls(): iterable
+    {
+        yield 'host simples' => ['https://api.example.com', '/users', 'https://api.example.com/users'];
+        yield 'caminho no endereço-base' => ['https://api.example.com/v1', '/users', 'https://api.example.com/v1/users'];
+        yield 'barra final no endereço-base' => ['https://api.example.com/v1/', '/users', 'https://api.example.com/v1/users'];
+        yield 'query fixa no caminho' => ['https://api.example.com', '/users?active=1&sort=name', 'https://api.example.com/users?active=1&sort=name'];
+        yield 'localhost com porta' => ['http://localhost:8080', '/x', 'http://localhost:8080/x'];
+        yield 'IPv4 com porta' => ['http://127.0.0.1:9000/base', '/x', 'http://127.0.0.1:9000/base/x'];
+        yield 'IPv6 com porta' => ['http://[::1]:8080/api', '/x', 'http://[::1]:8080/api/x'];
+        yield 'IPv6 sem porta' => ['https://[2001:db8::1]', '/x', 'https://[2001:db8::1]/x'];
+        yield 'subdomínios e hífen' => ['https://sub-domain.api.example.co.uk', '/x', 'https://sub-domain.api.example.co.uk/x'];
+        yield 'esquema em maiúsculas' => ['HTTPS://Api.Example.com', '/x', 'HTTPS://Api.Example.com/x'];
+        yield 'porta máxima' => ['http://api.example.com:65535', '/x', 'http://api.example.com:65535/x'];
+    }
+
+    /**
+     * FIX-01: endereços-base que produziriam URLs incorretas ou inseguras
+     * são rejeitados na posição da API.
+     */
+    #[DataProvider('invalidBaseUrls')]
+    public function testInvalidBaseUrlIsRejected(string $baseUrl, string $reason): void
+    {
+        try {
+            $this->generate(self::programWithSource($baseUrl));
+            self::fail('Era esperada GenerationException para ' . $baseUrl);
+        } catch (GenerationException $exception) {
+            self::assertSame(
+                "Erro de geração na linha 3, coluna 1: o endereço-base da API 'Src' deve ser uma URL http:// ou https:// válida: " . $reason,
+                $exception->getMessage(),
+            );
+        }
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function invalidBaseUrls(): iterable
+    {
+        $query = "não pode conter query string ('?') nem fragmento ('#'); coloque a query no caminho do endpoint";
+        $absolute = 'esperada uma URL absoluta, como https://api.exemplo.com/v1';
+
+        yield 'query string (caso do code review)' => ['https://api.example.com?x=1', $query];
+        yield 'query string vazia' => ['https://api.example.com/v1?', $query];
+        yield 'fragmento' => ['https://api.example.com/v1#parte', $query];
+        yield 'usuário e senha' => ['https://user:pass@api.example.com', 'credenciais embutidas na URL não são permitidas; use um header com env()'];
+        yield 'token como usuário' => ['https://token@api.example.com', 'credenciais embutidas na URL não são permitidas; use um header com env()'];
+        yield 'ftp' => ['ftp://api.example.com', "protocolo 'ftp' não suportado"];
+        yield 'file' => ['file:///etc', $absolute];
+        yield 'sem esquema' => ['api.example.com/v1', $absolute];
+        yield 'relativa ao protocolo' => ['//api.example.com', $absolute];
+        yield 'sem host' => ['https://', $absolute];
+        yield 'barra única' => ['https:/api.example.com', $absolute];
+        yield 'porta zero' => ['https://api.example.com:0', 'porta fora do intervalo 1-65535'];
+        yield 'porta acima de 65535' => ['https://api.example.com:70000', $absolute];
+        yield 'porta vazia' => ['https://api.example.com:', 'host ou porta malformados'];
+        yield 'porta não numérica' => ['https://api.example.com:abc', $absolute];
+        yield 'host com sublinhado' => ['https://bad_host.example.com', "host 'bad_host.example.com' inválido"];
+        yield 'IPv4 inválido' => ['http://999.1.1.1', "host '999.1.1.1' inválido"];
+        yield 'IPv6 inválido' => ['http://[::g]', "host '[::g]' inválido"];
+        yield 'espaço' => ['https://api .example.com', 'não pode conter espaços nem caracteres de controle'];
+        yield 'tab' => ["https://api.example.com\t", 'não pode conter espaços nem caracteres de controle'];
+        yield 'quebra de linha' => ["https://api.example.com\n/v1", 'não pode conter espaços nem caracteres de controle'];
+    }
+
+    /**
+     * FIX-01: caminhos com fragmento, espaços, caracteres de controle ou sem
+     * "/" inicial são rejeitados na posição do endpoint.
+     */
+    #[DataProvider('invalidPaths')]
+    public function testInvalidEndpointPathIsRejected(string $path): void
+    {
+        try {
+            $this->generate(self::programWithSource('https://api.example.com', $path));
+            self::fail('Era esperada GenerationException para ' . $path);
+        } catch (GenerationException $exception) {
+            self::assertSame(
+                "Erro de geração na linha 4, coluna 5: o caminho do endpoint 'list' deve começar com '/' "
+                . "e não conter espaços, caracteres de controle nem fragmento ('#')",
+                $exception->getMessage(),
+            );
+        }
+    }
+
+    /** @return iterable<string, array{string}> */
+    public static function invalidPaths(): iterable
+    {
+        yield 'fragmento' => ['/users#topo'];
+        yield 'fragmento após query' => ['/users?a=1#x'];
+        yield 'espaço' => ['/a b'];
+        yield 'controle' => ["/a\x01b"];
+        yield 'sem barra inicial' => ['users'];
+    }
+
+    /**
+     * FIX-01: parâmetros dinâmicos continuam rejeitados no endpoint usado,
+     * também quando aparecem na query string.
+     */
+    public function testDynamicPathParametersAreStillRejected(): void
+    {
+        $this->expectException(GenerationException::class);
+        $this->expectExceptionMessage("o endpoint 'list' usa parâmetros de caminho ('/users?id={id}'), ainda não suportados (pendência P8)");
+
+        $this->generate(self::programWithSource('https://api.example.com', '/users?id={id}'));
+    }
 }

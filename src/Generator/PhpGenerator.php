@@ -219,7 +219,14 @@ final class PhpGenerator
     }
 
     /**
-     * Monta a URL do endpoint (endereço-base + caminho), validando-a.
+     * Monta a URL do endpoint (endereço-base + caminho), validando as duas
+     * partes para que a concatenação produza uma URL correta.
+     *
+     * Endereço-base: http/https, host válido (nome, localhost, IPv4 ou
+     * [IPv6]), porta opcional, caminho opcional; sem credenciais, query
+     * string, fragmento, espaços ou caracteres de controle. Caminho do
+     * endpoint: começa com "/", query string fixa permitida, sem fragmento,
+     * espaços, caracteres de controle ou parâmetros "{...}".
      *
      * @param Api      $api      API.
      * @param Endpoint $endpoint Endpoint.
@@ -228,16 +235,21 @@ final class PhpGenerator
      */
     private function endpointUrl(Api $api, Endpoint $endpoint): string
     {
-        if (preg_match('~^https?://[^/?#\s]+~i', $api->baseUrl) !== 1 || preg_match('/[\s\x00-\x1F\x7F]/', $api->baseUrl) === 1) {
+        $problem = self::baseUrlProblem($api->baseUrl);
+        if ($problem !== null) {
             throw new GenerationException(
-                sprintf("o endereço-base da API '%s' deve ser uma URL http:// ou https:// sem espaços", $api->name),
+                sprintf("o endereço-base da API '%s' deve ser uma URL http:// ou https:// válida: %s", $api->name, $problem),
                 $api->line,
                 $api->column,
             );
         }
-        if (!str_starts_with($endpoint->path, '/') || preg_match('/[\s\x00-\x1F\x7F]/', $endpoint->path) === 1) {
+        $path = $endpoint->path;
+        if (!str_starts_with($path, '/') || preg_match('/[\s\x00-\x1F\x7F#]/', $path) === 1) {
             throw new GenerationException(
-                sprintf("o caminho do endpoint '%s' deve começar com '/' e não conter espaços", $endpoint->name),
+                sprintf(
+                    "o caminho do endpoint '%s' deve começar com '/' e não conter espaços, caracteres de controle nem fragmento ('#')",
+                    $endpoint->name,
+                ),
                 $endpoint->line,
                 $endpoint->column,
             );
@@ -254,7 +266,70 @@ final class PhpGenerator
             );
         }
 
-        return rtrim($api->baseUrl, '/') . $endpoint->path;
+        return rtrim($api->baseUrl, '/') . $path;
+    }
+
+    /**
+     * Motivo pelo qual o endereço-base é inválido, ou null se for válido.
+     *
+     * @param string $url Endereço-base.
+     *
+     * @return string|null
+     */
+    private static function baseUrlProblem(string $url): ?string
+    {
+        if (preg_match('/[\s\x00-\x1F\x7F]/', $url) === 1) {
+            return 'não pode conter espaços nem caracteres de controle';
+        }
+        if (str_contains($url, '?') || str_contains($url, '#')) {
+            return "não pode conter query string ('?') nem fragmento ('#'); coloque a query no caminho do endpoint";
+        }
+
+        $parts = parse_url($url);
+        if ($parts === false || !isset($parts['scheme'], $parts['host']) || preg_match('~^[a-z][a-z0-9+.-]*://~i', $url) !== 1) {
+            return 'esperada uma URL absoluta, como https://api.exemplo.com/v1';
+        }
+        if (!in_array(strtolower($parts['scheme']), ['http', 'https'], true)) {
+            return sprintf("protocolo '%s' não suportado", $parts['scheme']);
+        }
+        if (isset($parts['user']) || isset($parts['pass'])) {
+            return 'credenciais embutidas na URL não são permitidas; use um header com env()';
+        }
+        if (isset($parts['port']) && ($parts['port'] < 1 || $parts['port'] > 65535)) {
+            return 'porta fora do intervalo 1-65535';
+        }
+        if (!self::isValidHost($parts['host'])) {
+            return sprintf("host '%s' inválido", $parts['host']);
+        }
+
+        // parse_url() é permissivo: a autoridade escrita deve ser exatamente
+        // "host" ou "host:porta" (rejeita, por exemplo, "host:" e "host:080").
+        $authority = (string) preg_replace('~^[a-z][a-z0-9+.-]*://([^/]*).*$~is', '$1', $url);
+        $expected = $parts['host'] . (isset($parts['port']) ? ':' . $parts['port'] : '');
+        if (strcasecmp($authority, $expected) !== 0) {
+            return 'host ou porta malformados';
+        }
+
+        return null;
+    }
+
+    /**
+     * Aceita nome de host (inclusive localhost), IPv4 e IPv6 entre colchetes.
+     *
+     * @param string $host Host extraído por parse_url().
+     *
+     * @return bool
+     */
+    private static function isValidHost(string $host): bool
+    {
+        if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
+            return filter_var(substr($host, 1, -1), FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false;
+        }
+        if (preg_match('/^[0-9.]+$/', $host) === 1) {
+            return filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false;
+        }
+
+        return filter_var($host, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) !== false;
     }
 
     /**
