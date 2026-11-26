@@ -1,89 +1,124 @@
-# Tokens (escopo preliminar)
+# Tokens e Analisador Léxico
 
-> **Status: EM DEFINIÇÃO.**
-> A especificação dos tokens é responsabilidade do integrante do **Analisador
-> Léxico**, em acordo com o responsável pelo **Analisador Sintático**.
+> **Status: DEFINIDO E IMPLEMENTADO** em [`src/Lexer/Lexer.php`](../src/Lexer/Lexer.php).
+> Responsável: integrante do **Analisador Léxico**. Os tipos de token
+> ([`TokenType`](../src/Lexer/TokenType.php)) são o contrato com o
+> **Analisador Sintático**; a gramática que os usa está em
+> [`grammar.md`](grammar.md).
 
 ## 1. Papel do Lexer
 
-Receber o texto-fonte (`string`) e produzir uma sequência de tokens,
-descartando espaços em branco e comentários, ou reportar um **erro léxico**
-com linha e coluna.
+Receber o texto-fonte (`string`) e produzir uma lista de tokens, descartando
+espaços e comentários, ou lançar `LexicalException` com linha e coluna.
 
-## 2. Estrutura de um token (proposta)
+```php
+$tokens = (new Lexer($source))->tokenize();   // list<Token>, termina com um Eof
+```
+
+## 2. Estrutura de um token
+
+Classe [`App\Lexer\Token`](../src/Lexer/Token.php), imutável.
 
 | Campo | Exemplo | Descrição |
 |---|---|---|
-| `type` | `IDENTIFIER` | Categoria do token |
-| `lexeme` | `listUsers` | Texto exato reconhecido |
-| `line` | `3` | Linha inicial (a partir de 1) |
-| `column` | `14` | Coluna inicial (a partir de 1) |
+| `type` | `TokenType::StringLiteral` | Categoria do token |
+| `lexeme` | `"/users"` (com as aspas) | Texto exato reconhecido |
+| `line` | `3` | Linha inicial, a partir de 1 |
+| `column` | `14` | Coluna inicial, a partir de 1, em caracteres (não bytes) |
+| `value` | `/users` | Valor semântico dos literais: `string`, `int` ou `float`. Nos demais tokens, `null` |
 
-Opções de implementação (a decidir): classe `Token` com `enum TokenType`
-(PHP 8.1+), ou array associativo.
+## 3. Categorias
 
-Um token final `EOF` facilita o trabalho do Parser.
-
-## 3. Categorias candidatas
-
-| Categoria | Exemplos | Observação |
+| Categoria | Padrão | `TokenType` |
 |---|---|---|
-| Palavras reservadas | `api`, `endpoint`, `integration`, `from`, `to`, `base` | Dependem da gramática |
-| Métodos HTTP | `GET`, `POST`, `PUT`, `PATCH`, `DELETE` | Palavra reservada ou identificador? |
-| Identificadores | `Users`, `listUsers` | Regra proposta: `[A-Za-z_][A-Za-z0-9_]*` |
-| Literais de texto | `"https://..."`, `"/users"` | Aspas duplas? Sequências de escape? |
-| Literais numéricos | `10`, `3.5` | Necessários para tipos/condições |
-| Literais booleanos | `true`, `false` | Necessários para tipos/condições |
-| Operadores | `==`, `!=`, `<`, `>`, `<=`, `>=`, `&&`, `\|\|`, `!` | Dependem da decisão sobre operadores |
-| Delimitadores | `{`, `}`, `(`, `)`, `.`, `,`, `;`, `:` | Dependem da gramática |
-| Comentários | `# ...` ou `// ...` | Descartados pelo Lexer |
+| Palavras reservadas (estrutura) | `api` `base` `header` `endpoint` `integration` `from` `as` `to` `when` `map` | `Api`, `Base`, `Header`, `Endpoint`, `Integration`, `From`, `As`, `To`, `When`, `Map` |
+| Palavras reservadas (métodos HTTP) | `GET` `POST` `PUT` `PATCH` `DELETE` | `Get`, `Post`, `Put`, `Patch`, `Delete` |
+| Palavras reservadas (tipos) | `string` `int` `float` `bool` | `TypeString`, `TypeInt`, `TypeFloat`, `TypeBool` |
+| Palavras reservadas (literais) | `true` `false` `null` | `True`, `False`, `Null` |
+| Identificador | `[A-Za-z_][A-Za-z0-9_]*` | `Identifier` |
+| Literal de texto | `"([^"\\\n]\|\\["\\nt])*"` | `StringLiteral` |
+| Literal inteiro | `[0-9]+` | `IntLiteral` |
+| Literal decimal | `[0-9]+\.[0-9]+` | `FloatLiteral` |
+| Operadores lógicos | `\|\|` `&&` `!` | `OrOr`, `AndAnd`, `Bang` |
+| Operadores de igualdade e relacionais | `==` `!=` `<` `<=` `>` `>=` | `EqualEqual`, `BangEqual`, `Less`, `LessEqual`, `Greater`, `GreaterEqual` |
+| Operadores aritméticos | `+` `-` `*` `/` `%` | `Plus`, `Minus`, `Star`, `Slash`, `Percent` |
+| Atribuição | `=` | `Assign` |
+| Delimitadores | `{` `}` `(` `)` `.` `,` `;` `:` | `LeftBrace`, `RightBrace`, `LeftParen`, `RightParen`, `Dot`, `Comma`, `Semicolon`, `Colon` |
+| Fim do arquivo | — | `Eof` |
 
-## 4. Erros léxicos esperados
+## 4. Regras
 
-- Caractere não reconhecido (ex.: `@` fora de uma string).
-- String não terminada.
-- Número malformado (ex.: `1.2.3`), se houver literais numéricos.
+1. **Maiúsculas importam.** `api` é palavra reservada e `Api` é identificador;
+   `GET` é método HTTP e `get` é identificador.
+2. **Palavra inteira.** `apis` e `map_` são identificadores.
+3. **Maior casamento.** `>=` é um token só, não `>` seguido de `=`.
+4. **Números não têm sinal.** `-5` é o operador `-` seguido de `5`.
+5. **Ponto.** Em `1.5` faz parte do número; em `Crm.listar` e `1.a` é o
+   delimitador `Dot`.
+6. **Textos** ficam em uma linha só, entre aspas duplas. Escapes: `\"`, `\\`,
+   `\n` e `\t`. Aceitam acentos e qualquer caractere UTF-8.
+7. **Identificadores** só usam letras sem acento, dígitos e `_`.
+8. **Comentários**, descartados: `// até o fim da linha`, `# até o fim da linha`
+   e `/* bloco, em várias linhas */` (sem aninhamento).
+9. **Espaços**, descartados: espaço, tab e quebra de linha. CRLF conta como uma
+   quebra só. O BOM no início do arquivo é ignorado.
 
-Cada erro deve informar linha e coluna. Exemplos ficam em
-`examples/invalid/lexical/`.
+O Lexer decide o tipo do token pelo primeiro caractere:
 
-## 5. Contrato com o Parser (implementado)
+| Primeiro caractere | Reconhece | Método |
+|---|---|---|
+| Letra ou `_` | palavra reservada ou identificador | `word()` |
+| Dígito | inteiro ou decimal | `number()` |
+| `"` | texto | `text()` |
+| Outro | operador, delimitador ou erro | `symbol()` |
 
-Para que o Analisador Sintático pudesse ser implementado e testado, a
-estrutura do token e o conjunto de terminais exigidos pela gramática foram
-fixados em código, **sem implementar o Lexer** (que continua a cargo do
-responsável pelo Analisador Léxico):
+## 5. Erros léxicos
 
-- [`src/Lexer/Token.php`](../src/Lexer/Token.php): classe `readonly` com
-  `type`, `lexeme`, `line`, `column` e **`value`** — o valor semântico dos
-  literais (texto sem aspas e com escapes resolvidos; `int`; `float`), que o
-  Parser usa para montar a AST;
-- [`src/Lexer/TokenType.php`](../src/Lexer/TokenType.php): enum com um caso
-  por terminal da gramática e `TokenType::reservedWords()`, tabela
-  lexema → tipo das 22 palavras reservadas (útil para distinguir palavras
-  reservadas de identificadores).
+Todos lançam [`LexicalException`](../src/Exceptions/LexicalException.php), no
+formato:
 
-O que o Parser espera do Lexer:
+```text
+Erro léxico na linha <L>, coluna <C>: <motivo>
+```
 
-1. Uma `list<Token>` terminada por **exatamente um** token `TokenType::Eof`.
-2. Espaços e comentários já descartados.
-3. Palavras reservadas sensíveis a maiúsculas (`api` ≠ `Api`; `GET` ≠ `get`).
-4. Literais numéricos **sem sinal** (`-5` = operador `-` + literal `5`).
-5. `value` preenchido em `StringLiteral` (string), `IntLiteral` (int) e
-   `FloatLiteral` (float).
+A análise para no primeiro erro léxico.
 
-A lista completa de terminais e seu papel na gramática está em
-[`grammar.md`](grammar.md), seção 3. O responsável pelo Lexer pode ajustar
-estes arquivos, desde que combine a mudança com o Parser.
+| Erro | Exemplo | Motivo exibido | Posição apontada |
+|---|---|---|---|
+| Caractere inválido | `Crm@criar` | `caractere inválido '@'` | o caractere |
+| `&` ou `\|` sozinho | `a & b` | `caractere inválido '&' (o operador lógico é '&&')` | o caractere |
+| Aspas simples ou curvas | `'x'` | `caractere inválido ''' (textos usam aspas duplas retas)` | o caractere |
+| Caractere invisível | espaço não separável | `caractere inválido U+00A0` | o caractere |
+| Texto não terminado | `"https://x;` | `texto não terminado: faltou fechar as aspas` | a aspa de abertura |
+| Escape inválido | `"a\qb"` | `sequência de escape inválida '\q' (use \", \\, \n ou \t)` | a barra invertida |
+| Número malformado | `1.2.3`, `12abc`, `1e5` | `número malformado '1.2.3'` | o início do número |
+| Número grande demais | `9223372036854775808` | `número '9223372036854775808' acima do limite aceito` | o início do número |
+| Comentário de bloco aberto | `/* sem fim` | `comentário de bloco não terminado: faltou fechar com '*/'` | o `/*` |
+| Codificação | byte fora do UTF-8 | `o arquivo não está em UTF-8` | o byte |
 
-## 6. Pendências
+Exemplos em `examples/invalid/lexical/`, cada um com a mensagem documentada em
+um comentário `// Erro esperado:` conferido pelos testes:
 
-| # | Questão |
+| Arquivo | Erro demonstrado |
 |---|---|
-| T1 | ~~Lista final de palavras reservadas~~ — definida pela gramática (G1): ver seção 5 e `TokenType::reservedWords()` |
-| T2 | ~~Palavras reservadas diferenciam maiúsculas/minúsculas?~~ — sim (proposta da gramática) |
-| T3 | ~~Métodos HTTP como palavras reservadas ou identificadores validados pelo Parser?~~ — palavras reservadas, um tipo de token por método |
-| T4 | ~~URLs como string comum ou token próprio?~~ — string comum (`StringLiteral`); o Parser valida o `/` inicial dos caminhos |
-| T5 | Sintaxe de comentários |
-| T6 | ~~Literais numéricos/booleanos e operadores~~ — definidos pela gramática (G5/G6); ver `grammar.md`, seção 3 |
-| T7 | Codificação: suporte a UTF-8 em strings e identificadores? |
+| `01-caractere-invalido.dsl` | `@` no lugar do ponto em `Crm.createContact` |
+| `02-texto-nao-terminado.dsl` | URL sem as aspas de fechamento |
+| `03-numero-malformado.dsl` | `10.5.3` |
+
+## 6. Testes
+
+[`tests/Unit/Lexer/LexerTest.php`](../tests/Unit/Lexer/LexerTest.php): todos os
+terminais, valores, posições (LF e CRLF), cada erro da seção 5 e todos os
+arquivos de `examples/`. Os testes do Parser também usam este Lexer.
+
+## 7. Decisões
+
+| # | Questão | Decisão |
+|---|---|---|
+| T1 | Palavras reservadas | As 22 da gramática (G1), em `TokenType::reservedWords()` |
+| T2 | Maiúsculas e minúsculas | Diferencia |
+| T3 | Métodos HTTP | Palavras reservadas, um tipo por método |
+| T4 | URLs | Texto comum (`StringLiteral`); o Parser valida o `/` inicial dos caminhos |
+| T5 | Comentários | `//`, `#` e `/* */` |
+| T6 | Literais e operadores | Definidos pela gramática (G5/G6) |
+| T7 | UTF-8 | Sim em textos e comentários; identificadores só ASCII |

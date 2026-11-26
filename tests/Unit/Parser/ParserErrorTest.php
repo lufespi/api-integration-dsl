@@ -6,6 +6,7 @@ namespace Tests\Unit\Parser;
 
 use App\Exceptions\CompilerException;
 use App\Exceptions\SyntaxException;
+use App\Lexer\Lexer;
 use App\Lexer\Token;
 use App\Lexer\TokenType;
 use App\Parser\Parser;
@@ -13,7 +14,6 @@ use InvalidArgumentException;
 use LogicException;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
-use Tests\Support\SourceTokenizer;
 
 /**
  * Testes do Analisador Sintático com programas inválidos: mensagem, linha e
@@ -36,7 +36,7 @@ final class ParserErrorTest extends TestCase
     private function syntaxErrorOf(string $source): SyntaxException
     {
         try {
-            (new Parser(SourceTokenizer::tokenize($source)))->parse();
+            (new Parser((new Lexer($source))->tokenize()))->parse();
         } catch (SyntaxException $exception) {
             return $exception;
         }
