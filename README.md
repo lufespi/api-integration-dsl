@@ -276,7 +276,7 @@ api-integration-dsl/
 | AST | ✅ Implementada (`src/Ast`); consumida pelo Generator sem alterações |
 | Contrato de tokens (`Token`, `TokenType`) | ✅ Pronto (`src/Lexer`) |
 | Lexer (escrito à mão, erros léxicos) | ✅ Pronto (`src/Lexer`, [docs/tokens.md](docs/tokens.md)) |
-| Generator (AST → PHP com cURL, `when`, `map`, cabeçalhos) | ✅ Pronto (`src/Generator`, [docs/generator.md](docs/generator.md)); decisões provisórias aguardam o grupo |
+| Generator (AST → PHP com cURL, `when`, `map`, cabeçalhos) | ✅ Pronto, com correções pós-code review (`src/Generator`, [docs/generator.md](docs/generator.md)); decisões provisórias aguardam o grupo |
 | Integração do pipeline na CLI | ⏳ Não iniciado |
 | Exemplos `.dsl` válidos e com erros sintáticos | ✅ Prontos (`examples/valid`, `examples/invalid/syntactic`) |
 | Exemplos `.dsl` com erros léxicos | ✅ Prontos (`examples/invalid/lexical`) |

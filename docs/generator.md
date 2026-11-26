@@ -1,6 +1,8 @@
 # Gerador de Código PHP
 
 > **Status: IMPLEMENTADO** em [`src/Generator/`](../src/Generator/) (2026-11-26).
+> Inclui as correções pós-code review (URLs, inteiros grandes, sanitização de
+> logs, valores não finitos).
 > Responsável: integrante do **Gerador de código**. Consome a AST definida em
 > [`ast-contract.md`](ast-contract.md). A integração na CLI é feita por outro
 > integrante e **ainda não foi realizada**.
@@ -131,7 +133,7 @@ sem falhas; **1** se qualquer integração tiver falha.
 1. Calcula os cabeçalhos da API de origem e da API de destino (falha de
    configuração, como `env()` ausente, interrompe a integração **antes** de
    qualquer requisição).
-2. `GET` na URL de origem (`baseUrl` + `path`); decodifica o JSON.
+2. `GET` na URL de origem (`baseUrl` + `path`, seção 3.6); decodifica o JSON.
 3. Obtém os registros: **objeto** JSON = um registro; **lista** JSON = cada
    item é um registro (cada item deve ser objeto). Outro formato é erro.
 4. Para cada registro: avalia `when` (se houver); se falso, ignora. Monta o
@@ -150,8 +152,9 @@ sem falhas; **1** se qualquer integração tiver falha.
 | `Content-Type` | `application/json` adicionado quando há body, **exceto** se a API já declarar `Content-Type` (sem duplicar). |
 | Timeouts | 10 s para conectar (`DSL_CONNECT_TIMEOUT`), 30 s por requisição (`DSL_REQUEST_TIMEOUT`). |
 | Sucesso | Status `2xx`. Qualquer outro (inclusive `3xx`: redirecionamentos não são seguidos) é erro com o código de status. |
-| Falha de conexão | Mensagem com método, URL e o erro do cURL. |
-| JSON da origem | Decodificado como objetos (`stdClass`), preservando `{}` vs `[]` ao repassar o registro. JSON inválido é erro. |
+| Falha de conexão | Mensagem com método, URL sanitizada e a descrição genérica do código de erro do cURL (`curl_strerror`), ex.: `Could not connect to server (cURL 7)` (o texto depende da versão do libcurl). |
+| JSON da origem | Decodificado como objetos (`stdClass`), mantendo a distinção `{}`/`[]` ao repassar o registro, e com `JSON_BIGINT_AS_STRING` (seção 3.7). JSON inválido é erro. |
+| Logs | URLs aparecem com a query string inteira ocultada (`/users?[REDACTED]`), em sucesso e em falha. A URL enviada ao cURL não é alterada. |
 | Recursos | O handle cURL é liberado ao fim de cada requisição (`finally`). |
 | TLS | Verificação de certificado **mantida** (padrão do cURL); apenas `http`/`https` são aceitos. |
 
@@ -193,10 +196,12 @@ o payload é um objeto JSON (mesmo com campos de nome numérico).
 |---|---|---|
 | `string` | texto; número (`1990` → `"1990"`); booleano (`"true"`/`"false"`) | `null`, lista, objeto |
 | `int` | inteiro; decimal sem parte fracionária (`36.0` → `36`); texto inteiro (`"42"`) | `3.7`, `"abc"`, `null`, booleano |
-| `float` | inteiro ou decimal (`36` → `36.0`); texto numérico | `"abc"`, `null`, booleano |
+| `float` | inteiro ou decimal (`36` → `36.0`); texto numérico | `"abc"`, `null`, booleano, resultado não finito (`"1e400"`) |
 | `bool` | booleano; `1`/`0`; `"true"`/`"false"`/`"1"`/`"0"` | outros valores, `null` |
 
 Conversões que perderiam informação são erros, não truncamentos silenciosos.
+Valores não finitos (`INF`, `-INF`, `NAN`) são rejeitados para qualquer tipo,
+com a mensagem `campo "x": o valor não é um número finito` (seção 3.8).
 
 ### 3.5 Cabeçalhos (`header`)
 
@@ -207,6 +212,48 @@ Conversões que perderiam informação são erros, não truncamentos silenciosos
   requisições; o resultado deve ser texto ou número.
 - Valores com quebra de linha são rejeitados (injeção de cabeçalho).
 - Nomes de cabeçalho são validados na geração (caracteres de *token* HTTP).
+
+### 3.6 Composição e validação de URLs
+
+A URL de cada endpoint usado é `baseUrl` (sem a barra final) + `path`. Para
+que a concatenação sempre produza uma URL correta, o Gerador valida as duas
+partes com `parse_url()` e verificações complementares:
+
+| Parte | Aceita | Rejeita |
+|---|---|---|
+| Endereço-base | `http`/`https` (qualquer caixa); host por nome, `localhost`, IPv4 ou IPv6 entre colchetes (`[::1]`); porta 1–65535; caminho (`/v1`) | credenciais (`user:pass@`, `token@`), query string e fragmento (inclusive `?` ou `#` vazios), outros protocolos, URL relativa, host inválido (`bad_host`, `999.1.1.1`), porta vazia/fora do intervalo, espaços e caracteres de controle |
+| Caminho do endpoint | início com `/`; query string fixa (`/users?active=1`) | fragmento (`#`), espaços, caracteres de controle, parâmetros `{...}` (P8) |
+
+Exemplo do code review: `https://api.example.com?x=1` + `/users` geraria
+`https://api.example.com?x=1/users`; agora é `GenerationException` na
+posição da API, orientando a mover a query para o caminho do endpoint.
+
+### 3.7 Inteiros JSON grandes
+
+A resposta da origem é decodificada com `JSON_THROW_ON_ERROR |
+JSON_BIGINT_AS_STRING`. Inteiros dentro do intervalo do PHP continuam
+`int`; inteiros fora dele (ex.: identificadores `12345678901234567890`)
+viram **texto**, preservando todos os dígitos em vez de serem arredondados
+para `float`.
+
+Consequência (decisão do runtime, G-6): ao reenviar o registro sem `map`,
+esses valores saem como texto JSON (`"id":"12345678901234567890"`), não como
+número. No `map`, `string` preserva os dígitos e `int` rejeita o valor
+(fora do intervalo); `float` converte com a perda de precisão própria do tipo.
+
+### 3.8 Valores numéricos não finitos
+
+`INF`, `-INF` e `NAN` não são representáveis em JSON. Proteção mínima:
+
+- número JSON fora do intervalo de `float` (ex.: `1e400`, que `json_decode`
+  transforma em `INF`) → erro ao ler o campo (`o campo "v" contém um número
+  fora do intervalo suportado`);
+- operação aritmética com resultado não finito (overflow) → erro
+  (`o operador "*" produziu um resultado fora do intervalo numérico suportado`);
+- `dsl_convert` → erro identificando o campo do `map`;
+- literal decimal não finito no programa → `GenerationException`.
+
+Como os demais erros de runtime, esses afetam só o registro em questão.
 
 ## 4. Verificações feitas na geração
 
@@ -226,7 +273,9 @@ Erro de geração na linha 12, coluna 10: a integração 'x' usa a API 'Crm' com
 | API / endpoint / integração duplicados | `API 'Src' declarada mais de uma vez (primeira declaração na linha 1); a referência seria ambígua` |
 | Método não suportado na posição | `o endpoint 'Loja.cancelarPedido' usa DELETE, que não é suportado como destino; use POST, PUT, PATCH` |
 | Parâmetro de caminho | `o endpoint 'x' usa parâmetros de caminho ('/orders/{id}'), ainda não suportados (pendência P8)` |
-| URL inválida | `o endereço-base da API 'X' deve ser uma URL http:// ou https:// sem espaços` |
+| Endereço-base inválido (seção 3.6) | `o endereço-base da API 'X' deve ser uma URL http:// ou https:// válida: não pode conter query string ('?') nem fragmento ('#'); ...` |
+| Caminho inválido | `o caminho do endpoint 'x' deve começar com '/' e não conter espaços, caracteres de controle nem fragmento ('#')` |
+| Literal decimal não finito | `literal decimal fora do intervalo numérico suportado (não é um número finito)` |
 | Função desconhecida / aridade | `função desconhecida 'upper'; funções disponíveis: env` |
 | Argumento de `env` não literal | `o argumento de 'env' deve ser um texto literal com o nome da variável` |
 | Campo sem alias / alias incompatível | `a referência de campo 'cliente.email' deve começar pelo alias 'contato' da integração 'x'` |
@@ -247,6 +296,10 @@ todas as APIs são validados, mas só os das APIs usadas são emitidos.
 - Sem `eval`, sem comandos de sistema, sem `include`/`require`.
 - Só a função `env` pode ser chamada, e com nome **literal**: dados do
   registro nunca escolhem qual variável de ambiente é lida.
+- URLs nos logs têm a query string ocultada (`?[REDACTED]`), pois ela pode
+  conter tokens; erros de conexão usam a descrição genérica do cURL, que não
+  repete a URL. Credenciais embutidas na URL (`user:pass@`) são rejeitadas
+  na geração.
 - Mensagens de erro nunca exibem valores de cabeçalhos nem de variáveis de
   ambiente (apenas o nome da variável ou do cabeçalho e o tipo do valor).
 - Verificação TLS do cURL mantida; protocolos restritos a HTTP/HTTPS;
@@ -260,9 +313,9 @@ mão (`Support/Ast.php`). Nenhum teste acessa a rede externa.
 
 | Arquivo | O que verifica |
 |---|---|
-| `ExpressionGenerationTest` | Literais, operadores, precedência, `+`, campos aninhados/ausentes, `env`, funções inválidas, regras de alias. As expressões traduzidas são **executadas** com o runtime real sobre registros simulados. |
-| `PhpGeneratorTest` | `php -l`, URLs e métodos, resolução de referências, várias integrações, determinismo, ausência de construções perigosas, escape de textos hostis, cabeçalhos, todas as `GenerationException`. |
-| `GeneratedCodeTest` | Script completo executado contra um **servidor HTTP local** (`php -S` em `127.0.0.1`, `Support/LocalHttpServer.php`): lista/objeto, `when`, `map`, PUT/PATCH, cabeçalhos por API, `env` ausente, status HTTP, JSON inválido, formato incompatível, falha de conexão, várias integrações, código de saída. |
+| `ExpressionGenerationTest` | Literais, operadores, precedência, `+`, campos aninhados/ausentes, `env`, funções inválidas, regras de alias, valores não finitos, `dsl_convert` com inteiros fora do intervalo, `dsl_safe_url`. As expressões traduzidas são **executadas** com o runtime real sobre registros simulados. |
+| `PhpGeneratorTest` | `php -l`, URLs e métodos, resolução de referências, várias integrações, determinismo, ausência de construções perigosas, escape de textos hostis, cabeçalhos, todas as `GenerationException`, URLs válidas e inválidas (seção 3.6). |
+| `GeneratedCodeTest` | Script completo executado contra um **servidor HTTP local** (`php -S` em `127.0.0.1`, `Support/LocalHttpServer.php`): lista/objeto, `when`, `map`, PUT/PATCH, cabeçalhos por API, `env` ausente, status HTTP, JSON inválido, formato incompatível, falha de conexão, várias integrações, código de saída, inteiros grandes, segredos na query string fora dos logs (em sucesso e em falha), valores não finitos falhando só o próprio registro. |
 | `ExamplesGenerationTest` | Os três exemplos de `examples/valid/` (via Lexer e Parser, só neste teste) geram PHP válido; condições, mapeamentos e cabeçalhos dos exemplos 2 e 3 avaliados com dados simulados. Os scripts **não** são executados contra as URLs de exemplo. |
 
 Os scripts gerados rodam em **processos PHP separados**
@@ -277,7 +330,7 @@ Sujeitas à validação do grupo; nenhuma exigiu alterar a AST ou a gramática.
 
 | # | Questão | Decisão provisória |
 |---|---|---|
-| P6 | `mappings` vazio | Envia o registro de origem **inteiro e sem alterações** (JSON preservado). |
+| P6 | `mappings` vazio | Envia o registro de origem **inteiro**, com os mesmos campos e valores; a representação numérica pode mudar (inteiros acima de `PHP_INT_MAX` viram texto, decimais são reserializados pelo PHP). |
 | P7 | Funções embutidas | Apenas `env("NOME")`, com nome literal. Outras (`upper`, `lower`, `now`...) são `GenerationException` até aprovação. |
 | P8 | Parâmetros de caminho | Não suportados: `{...}` em endpoint **usado** é `GenerationException`. Query string fixa no caminho é aceita. |
 | P9 | Respostas em lista | Lista → item a item; objeto → um registro; outros formatos → erro. |
@@ -288,6 +341,9 @@ Sujeitas à validação do grupo; nenhuma exigiu alterar a AST ou a gramática.
 | G-3 | Campos ausentes | Leitura devolve `null`; operações aritméticas/concatenação com `null` falham o registro. |
 | G-4 | Lógicos | `&&`, `\|\|`, `!` e o resultado de `when` usam a conversão booleana do PHP (`null`, `0`, `""`, `"0"` são falsos). |
 | G-5 | `env` vazia | Variável definida mas vazia é tratada como ausente. |
+| G-6 | Inteiros JSON grandes | `JSON_BIGINT_AS_STRING`: dígitos preservados, mas o valor passa a ser **texto** no JSON encaminhado (seção 3.7). |
+| G-7 | Query string nos logs | Ocultada por inteiro, sem lista de parâmetros sensíveis. |
+| G-8 | Valores não finitos | Rejeitados ao ler campos, ao final de cada operação aritmética, na conversão do `map` e em literais. |
 
 ## 8. Limitações conhecidas
 
@@ -297,5 +353,11 @@ Sujeitas à validação do grupo; nenhuma exigiu alterar a AST ou a gramática.
 - Uma requisição por registro (sem envio em lote).
 - A resposta do destino não é lida (só o status é verificado).
 - `==` entre dois objetos JSON compara identidade, não conteúdo (listas são comparadas por valor).
-- Inteiros JSON maiores que `PHP_INT_MAX` viram `float` (comportamento do `json_decode`).
+- Inteiros JSON maiores que `PHP_INT_MAX` são encaminhados como texto (`"9223372036854775808"`),
+  não podem ser usados em operações aritméticas nem convertidos para `int`; não há
+  aritmética de precisão arbitrária.
+- O registro reenviado sem `map` tem os mesmos campos e valores, mas não é
+  byte a byte idêntico ao recebido (espaços, ordem de escape e formato numérico podem mudar).
+- A compatibilidade de `tests/Unit/AutoloadTest.php` com Windows foi corrigida
+  por inspeção (normalização de caminhos), sem execução em Windows.
 - A integração do Gerador na CLI (`main.php`) ainda não foi feita.

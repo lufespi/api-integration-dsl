@@ -123,6 +123,8 @@ Diretrizes para o código gerado:
 - Script PHP autônomo: depende apenas de PHP com as extensões `curl` e `json`;
   **não** depende do Composer, deste projeto nem do Docker.
 - Gravado em `output/` (diretório ignorado pelo Git).
+- Logs do script ocultam a query string das URLs (`?[REDACTED]`) e nunca
+  exibem valores de cabeçalhos ou variáveis de ambiente.
 - O compilador **nunca executa** o código gerado nem faz requisições HTTP;
   a execução é uma decisão explícita do usuário.
 - Testes do gerador verificam o código produzido (texto e `php -l`), executam
