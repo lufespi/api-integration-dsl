@@ -12,7 +12,7 @@ use RuntimeException;
  *
  * Substitui as APIs reais nos testes do código gerado: cada teste define as
  * respostas por "MÉTODO /caminho" e depois inspeciona as requisições
- * recebidas (método, caminho, cabeçalhos e body). Rotas não configuradas
+ * recebidas (método, caminho, query string, cabeçalhos e body). Rotas não configuradas
  * respondem 201 com {"ok":true}. Nenhum serviço externo é acessado.
  */
 final class LocalHttpServer
@@ -27,6 +27,7 @@ final class LocalHttpServer
         file_put_contents(__DIR__ . '/requests.log', json_encode([
             'method' => $method,
             'path' => $path,
+            'query' => (string) ($_SERVER['QUERY_STRING'] ?? ''),
             'headers' => array_change_key_case(getallheaders(), CASE_LOWER),
             'body' => (string) file_get_contents('php://input'),
         ]) . "\n", FILE_APPEND | LOCK_EX);
@@ -112,7 +113,7 @@ final class LocalHttpServer
     /**
      * Requisições recebidas, na ordem de chegada.
      *
-     * @return list<array{method: string, path: string, headers: array<string, string>, body: string}>
+     * @return list<array{method: string, path: string, query: string, headers: array<string, string>, body: string}>
      */
     public function requests(): array
     {

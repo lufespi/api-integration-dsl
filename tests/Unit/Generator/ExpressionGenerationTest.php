@@ -421,4 +421,154 @@ final class ExpressionGenerationTest extends TestCase
 
         self::assertSame("dsl_field(\$record, ['total'])", $compiler->compileForRecord($reference, 'x', 'pedido'));
     }
+    /**
+     * FIX-04: literais decimais não finitos (ex.: um decimal enorme que o
+     * Lexer converte em INF) são erro de geração, não código com INF/NAN.
+     */
+    #[DataProvider('nonFiniteFloats')]
+    public function testNonFiniteFloatLiteralIsAGenerationError(float $value): void
+    {
+        $this->expectException(GenerationException::class);
+        $this->expectExceptionMessage('Erro de geração na linha 2, coluna 7: literal decimal fora do intervalo numérico suportado');
+
+        (new ExpressionCompiler())->compileWithoutRecord(new Literal(LiteralType::Float, $value, 2, 7));
+    }
+
+    /** @return iterable<string, array{float}> */
+    public static function nonFiniteFloats(): iterable
+    {
+        yield 'INF' => [INF];
+        yield '-INF' => [-INF];
+        yield 'NAN' => [NAN];
+    }
+
+    /**
+     * FIX-04: valores extremos, mas finitos, continuam válidos.
+     */
+    public function testExtremeFiniteValuesAreAccepted(): void
+    {
+        self::assertSame(PHP_FLOAT_MAX, $this->valueOf(Ast::float(PHP_FLOAT_MAX)));
+        self::assertSame(-PHP_FLOAT_MAX, $this->valueOf(Ast::field('c.v'), '{"v": -1.7976931348623157e308}'));
+        self::assertSame(PHP_FLOAT_MAX, $this->valueOf(Ast::bin(Op::Multiply, Ast::field('c.v'), Ast::int(1)), '{"v": 1.7976931348623157e308}'));
+        self::assertSame(5.0e-324, $this->valueOf(Ast::field('c.v'), '{"v": 5e-324}'));
+    }
+
+    /**
+     * FIX-04: resultados aritméticos não finitos (overflow) e números JSON
+     * fora do intervalo de float (decodificados como INF) geram erro claro,
+     * em vez de chegar silenciosamente a condições e mapeamentos.
+     */
+    #[DataProvider('nonFiniteOperations')]
+    public function testNonFiniteValuesFailAtRuntime(Expression $expression, string $record, string $message): void
+    {
+        self::assertSame($message, $this->runtimeErrorOf($expression, $record));
+    }
+
+    /** @return iterable<string, array{Expression, string, string}> */
+    public static function nonFiniteOperations(): iterable
+    {
+        $v = Ast::field('c.v');
+        $overflow = 'o operador "%s" produziu um resultado fora do intervalo numérico suportado';
+
+        yield 'multiplicação com overflow' => [Ast::bin(Op::Multiply, $v, Ast::int(10)), '{"v": 1e308}', sprintf($overflow, '*')];
+        yield 'soma com overflow' => [Ast::bin(Op::Add, $v, $v), '{"v": 1.7976931348623157e308}', sprintf($overflow, '+')];
+        yield 'subtração com overflow' => [Ast::bin(Op::Subtract, Ast::neg($v), $v), '{"v": 1e308}', sprintf($overflow, '-')];
+        yield 'divisão com overflow' => [Ast::bin(Op::Divide, $v, Ast::float(1e-10)), '{"v": 1e308}', sprintf($overflow, '/')];
+        yield 'JSON 1e400 (INF)' => [$v, '{"v": 1e400}', 'o campo "v" contém um número fora do intervalo suportado'];
+        yield 'JSON -1e400 aninhado' => [Ast::field('c.a.b'), '{"a": {"b": -1e400}}', 'o campo "a.b" contém um número fora do intervalo suportado'];
+        yield 'comparação com 1e400' => [Ast::bin(Op::Greater, $v, Ast::int(0)), '{"v": 1e400}', 'o campo "v" contém um número fora do intervalo suportado'];
+    }
+
+    /**
+     * FIX-04: dsl_convert() rejeita INF, -INF e NAN para qualquer tipo, e
+     * textos numéricos que viram INF ao converter para float; conversões
+     * válidas continuam iguais.
+     */
+    public function testConvertRejectsNonFiniteValues(): void
+    {
+        $script = GeneratedScript::forExpression('null');
+        $result = $script->call(<<<'PHP'
+            $outcome = static function (mixed $value, string $type): mixed {
+                try {
+                    return dsl_convert($value, $type, 'preco');
+                } catch (DslRuntimeException $exception) {
+                    return $exception->getMessage();
+                }
+            };
+
+            return [
+                $outcome(INF, 'float'),
+                $outcome(-INF, 'float'),
+                $outcome(NAN, 'float'),
+                $outcome(INF, 'string'),
+                $outcome(NAN, 'int'),
+                $outcome('1e400', 'float'),
+                $outcome('-1e400', 'float'),
+                $outcome(1.5, 'float'),
+                $outcome(2, 'float'),
+                $outcome('2.5', 'float'),
+                $outcome(PHP_FLOAT_MAX, 'float'),
+            ];
+            PHP);
+
+        $notFinite = 'campo "preco": o valor não é um número finito';
+        self::assertSame(
+            [$notFinite, $notFinite, $notFinite, $notFinite, $notFinite, $notFinite, $notFinite, 1.5, 2.0, 2.5, PHP_FLOAT_MAX],
+            $result['value'] ?? $result,
+        );
+    }
+
+    /**
+     * FIX-02: dsl_convert() para int rejeita inteiros fora do intervalo do
+     * PHP (que chegam como texto por JSON_BIGINT_AS_STRING) e aceita os limites.
+     */
+    public function testConvertToIntRejectsIntegersOutsidePhpRange(): void
+    {
+        $script = GeneratedScript::forExpression('null');
+        $result = $script->call(<<<'PHP'
+            $outcome = static function (mixed $value, string $type): mixed {
+                try {
+                    return dsl_convert($value, $type, 'id');
+                } catch (DslRuntimeException $exception) {
+                    return $exception->getMessage();
+                }
+            };
+
+            return [
+                $outcome('9223372036854775807', 'int'),
+                $outcome('-9223372036854775808', 'int'),
+                $outcome('9223372036854775808', 'int'),
+                $outcome('-9223372036854775809', 'int'),
+                $outcome('12345678901234567890', 'string'),
+            ];
+            PHP);
+
+        $outOfRange = 'campo "id": não é possível converter um valor string para int';
+        self::assertSame(
+            [PHP_INT_MAX, PHP_INT_MIN, $outOfRange, $outOfRange, '12345678901234567890'],
+            $result['value'] ?? $result,
+        );
+    }
+
+    /**
+     * FIX-03: dsl_safe_url() oculta toda a query string e preserva o resto.
+     */
+    public function testSafeUrlRedactsTheWholeQueryString(): void
+    {
+        $result = GeneratedScript::forExpression('null')->call(<<<'PHP'
+            return [
+                dsl_safe_url('https://api.example.com/users?api_key=secret123'),
+                dsl_safe_url('https://api.example.com/users?a=1&token=x'),
+                dsl_safe_url('https://api.example.com/users?'),
+                dsl_safe_url('http://127.0.0.1:8080/v1/users'),
+            ];
+            PHP);
+
+        self::assertSame([
+            'https://api.example.com/users?[REDACTED]',
+            'https://api.example.com/users?[REDACTED]',
+            'https://api.example.com/users?[REDACTED]',
+            'http://127.0.0.1:8080/v1/users',
+        ], $result['value'] ?? $result);
+    }
 }

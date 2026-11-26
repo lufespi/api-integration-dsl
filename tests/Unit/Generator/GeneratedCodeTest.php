@@ -357,4 +357,170 @@ final class GeneratedCodeTest extends TestCase
         self::assertStringContainsString('Concluído com falhas: 1 de 2 integração(ões).', $result['stderr']);
         self::assertSame(['/a/items', '/b/items', '/dst/records'], array_column(self::$server->requests(), 'path'));
     }
+    /**
+     * Programa cuja origem e destino têm caminhos informados (podem conter
+     * query string fixa), no servidor local ou na porta indicada.
+     */
+    private function programWithPaths(string $sourcePath, string $targetPath, ?int $sourcePort = null): Program
+    {
+        $source = $sourcePort === null ? self::$server->url() : 'http://127.0.0.1:' . $sourcePort;
+
+        return Ast::program(
+            [
+                Ast::api('Src', $source . '/src', [Ast::endpoint('list', HttpMethod::Get, $sourcePath)]),
+                Ast::api('Dst', self::$server->url() . '/dst', [Ast::endpoint('create', HttpMethod::Post, $targetPath)]),
+            ],
+            [Ast::integration('sync', 'Src.list', 'Dst.create')],
+        );
+    }
+
+    /**
+     * FIX-02: inteiros dentro do intervalo do PHP continuam números; os
+     * maiores que PHP_INT_MAX (em objeto ou lista, positivos ou negativos)
+     * preservam todos os dígitos, encaminhados como texto JSON.
+     */
+    public function testLargeJsonIntegersKeepAllDigits(): void
+    {
+        self::$server->respond('GET', '/src/items', 200, '[{"id":9223372036854775807,"n":42},'
+            . '{"id":9223372036854775808,"pedido":{"cliente":12345678901234567890}},{"id":-12345678901234567890}]');
+
+        $result = $this->execute($this->program());
+
+        self::assertSame(0, $result['exitCode'], $result['stderr']);
+        self::assertSame([
+            '{"id":9223372036854775807,"n":42}',
+            '{"id":"9223372036854775808","pedido":{"cliente":"12345678901234567890"}}',
+            '{"id":"-12345678901234567890"}',
+        ], array_column($this->requestsTo('/dst/records'), 'body'));
+    }
+
+    /**
+     * FIX-02: resposta em objeto com identificador grande, e "map": texto
+     * preserva os dígitos; int fora do intervalo é rejeitado no registro.
+     */
+    public function testLargeJsonIntegersInMapping(): void
+    {
+        self::$server->respond('GET', '/src/items', 200, '{"id":98765432109876543210}');
+
+        $result = $this->execute($this->program(alias: 'r', mappings: [
+            Ast::map('idText', DataType::String, Ast::field('r.id')),
+        ]));
+        self::assertSame(0, $result['exitCode'], $result['stderr']);
+        self::assertSame('{"idText":"98765432109876543210"}', $this->requestsTo('/dst/records')[0]['body']);
+
+        self::$server->reset();
+        self::$server->respond('GET', '/src/items', 200, '[{"id":9223372036854775807},{"id":9223372036854775808}]');
+
+        $result = $this->execute($this->program(alias: 'r', mappings: [Ast::map('id', DataType::Int, Ast::field('r.id'))]));
+        self::assertSame(1, $result['exitCode']);
+        self::assertStringContainsString('[sync] ERRO: registro 2: campo "id": não é possível converter um valor string para int', $result['stderr']);
+        self::assertSame(['{"id":9223372036854775807}'], array_column($this->requestsTo('/dst/records'), 'body'));
+    }
+
+    /**
+     * FIX-03: em sucesso, o parâmetro sensível é enviado à API, mas não
+     * aparece em stdout nem stderr; o log continua mostrando método e URL.
+     */
+    public function testQueryStringSecretsAreSentButNotLogged(): void
+    {
+        self::$server->respond('GET', '/src/items', 200, '[{"id":1}]');
+
+        $result = $this->execute($this->programWithPaths('/items?api_key=secret123', '/records?token=dst-secret'));
+
+        self::assertSame(0, $result['exitCode'], $result['stderr']);
+        $requests = self::$server->requests();
+        self::assertSame('api_key=secret123', $requests[0]['query']);
+        self::assertSame('token=dst-secret', $requests[1]['query']);
+
+        self::assertStringContainsString(sprintf(
+            '[sync] GET %1$s/src/items?[REDACTED] -> POST %1$s/dst/records?[REDACTED]',
+            self::$server->url(),
+        ), $result['stdout']);
+        foreach (['secret123', 'dst-secret', 'api_key', 'token='] as $secret) {
+            self::assertStringNotContainsString($secret, $result['stdout'] . $result['stderr']);
+        }
+    }
+
+    /**
+     * FIX-03: em falhas (status HTTP da origem e do destino, JSON inválido,
+     * conexão recusada), a mensagem mantém método, host e caminho, mas oculta
+     * a query string.
+     */
+    #[DataProvider('failuresWithSecrets')]
+    public function testQueryStringSecretsAreNotLoggedOnFailures(string $scenario, string $expected): void
+    {
+        $closedPort = LocalHttpServer::freePort();
+        match ($scenario) {
+            'source-status' => self::$server->respond('GET', '/src/items', 500, ''),
+            'invalid-json' => self::$server->respond('GET', '/src/items', 200, '<html>'),
+            'target-status' => [
+                self::$server->respond('GET', '/src/items', 200, '[{"id":1}]'),
+                self::$server->respond('POST', '/dst/records', 403, '{"error":"forbidden"}'),
+            ],
+            'connection' => null,
+        };
+
+        $program = $this->programWithPaths(
+            '/items?api_key=secret123',
+            '/records?token=dst-secret',
+            $scenario === 'connection' ? $closedPort : null,
+        );
+        $result = $this->execute($program);
+
+        self::assertSame(1, $result['exitCode']);
+        self::assertStringContainsString(
+            sprintf($expected, self::$server->url(), 'http://127.0.0.1:' . $closedPort),
+            $result['stderr'],
+        );
+        foreach (['secret123', 'dst-secret', 'api_key', 'token='] as $secret) {
+            self::assertStringNotContainsString($secret, $result['stdout'] . $result['stderr']);
+        }
+    }
+
+    /** @return iterable<string, array{string, string}> */
+    public static function failuresWithSecrets(): iterable
+    {
+        yield 'status HTTP da origem' => ['source-status', '[sync] ERRO: GET %1$s/src/items?[REDACTED] respondeu com status HTTP 500'];
+        yield 'JSON inválido' => ['invalid-json', '[sync] ERRO: a resposta de GET %1$s/src/items?[REDACTED] não é JSON válido'];
+        yield 'status HTTP do destino' => ['target-status', '[sync] ERRO: registro 1: POST %1$s/dst/records?[REDACTED] respondeu com status HTTP 403'];
+        yield 'conexão recusada' => ['connection', '[sync] ERRO: falha de conexão em GET %2$s/src/items?[REDACTED]: '];
+    }
+
+    /**
+     * FIX-04: valores não finitos falham apenas o registro em que aparecem;
+     * os demais continuam sendo processados e enviados.
+     */
+    public function testNonFiniteValuesFailOnlyTheirRecord(): void
+    {
+        self::$server->respond('GET', '/src/items', 200, '[{"v":"1e400"},{"v":2.5},{"v":1e400},{"v":1e308},{"v":"3"}]');
+
+        $result = $this->execute($this->program(alias: 'r', mappings: [
+            Ast::map('v', DataType::Float, Ast::field('r.v')),
+            Ast::map('dobro', DataType::Float, Ast::bin(Op::Multiply, Ast::field('r.v'), Ast::int(2))),
+        ]));
+
+        self::assertSame(1, $result['exitCode']);
+        // Os campos são avaliados na ordem do "map": "v" falha antes de "dobro".
+        self::assertStringContainsString('[sync] ERRO: registro 1: campo "v": o valor não é um número finito', $result['stderr']);
+        self::assertStringContainsString('[sync] ERRO: registro 3: o campo "v" contém um número fora do intervalo suportado', $result['stderr']);
+        self::assertStringContainsString('[sync] ERRO: registro 4: o operador "*" produziu um resultado fora do intervalo numérico suportado', $result['stderr']);
+        self::assertStringContainsString('[sync] ERRO: registro 5: o operador "*" exige números, mas recebeu string e int', $result['stderr']);
+        self::assertStringContainsString('5 registro(s) recebido(s): 1 enviado(s), 0 ignorado(s) pela condição, 4 com falha.', $result['stdout']);
+        self::assertSame(['{"v":2.5,"dobro":5.0}'], array_column($this->requestsTo('/dst/records'), 'body'));
+    }
+
+    /**
+     * FIX-04: conversão para float de um texto numérico que vira INF falha
+     * o registro, identificando o campo.
+     */
+    public function testNonFiniteConversionIdentifiesTheField(): void
+    {
+        self::$server->respond('GET', '/src/items', 200, '[{"v":"1e400"},{"v":"1.25"}]');
+
+        $result = $this->execute($this->program(alias: 'r', mappings: [Ast::map('preco', DataType::Float, Ast::field('r.v'))]));
+
+        self::assertSame(1, $result['exitCode']);
+        self::assertStringContainsString('[sync] ERRO: registro 1: campo "preco": o valor não é um número finito', $result['stderr']);
+        self::assertSame(['{"preco":1.25}'], array_column($this->requestsTo('/dst/records'), 'body'));
+    }
 }

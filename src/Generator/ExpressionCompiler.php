@@ -173,6 +173,13 @@ final class ExpressionCompiler
                 $literal->column,
             );
         }
+        if (is_float($value) && !is_finite($value)) {
+            throw new GenerationException(
+                'literal decimal fora do intervalo numérico suportado (não é um número finito)',
+                $literal->line,
+                $literal->column,
+            );
+        }
 
         return self::phpLiteral($value);
     }

@@ -58,6 +58,8 @@ final class RuntimeLibrary
         /**
          * Lê um campo (possivelmente aninhado) do registro. Campo ausente, ou
          * caminho que atravessa um valor que não é objeto JSON, resulta em null.
+         * Número JSON fora do intervalo de float (ex.: 1e400, decodificado como
+         * INF) é rejeitado, para não chegar a condições e mapeamentos.
          *
          * @param list<string> $path Segmentos após o alias (ex.: ['cliente', 'email']).
          */
@@ -69,6 +71,11 @@ final class RuntimeLibrary
                     return null;
                 }
                 $value = $value->{$segment};
+            }
+            if (is_float($value) && !is_finite($value)) {
+                throw new DslRuntimeException(
+                    sprintf('o campo "%s" contém um número fora do intervalo suportado', implode('.', $path)),
+                );
             }
 
             return $value;
@@ -135,13 +142,20 @@ final class RuntimeLibrary
                 throw new DslRuntimeException(sprintf('divisão por zero (operador "%s")', $operator));
             }
 
-            return match ($operator) {
+            $result = match ($operator) {
                 '+' => $left + $right,
                 '-' => $left - $right,
                 '*' => $left * $right,
                 '/' => $left / $right,
                 '%' => is_int($left) && is_int($right) ? $left % $right : fmod($left, $right),
             };
+            if (is_float($result) && !is_finite($result)) {
+                throw new DslRuntimeException(
+                    sprintf('o operador "%s" produziu um resultado fora do intervalo numérico suportado', $operator),
+                );
+            }
+
+            return $result;
         }
 
         /** Menos unário. */
@@ -195,10 +209,14 @@ final class RuntimeLibrary
 
         /**
          * Converte o valor de um campo do bloco "map" para o tipo declarado.
-         * Conversões que perderiam informação (ex.: 3.7 para int) são erros.
+         * Conversões que perderiam informação (ex.: 3.7 para int) e valores não
+         * finitos (INF, -INF, NAN: não representáveis em JSON) são erros.
          */
         function dsl_convert(mixed $value, string $type, string $field): string|int|float|bool
         {
+            if (is_float($value) && !is_finite($value)) {
+                throw new DslRuntimeException(sprintf('campo "%s": o valor não é um número finito', $field));
+            }
             $result = match ($type) {
                 'string' => is_string($value) || dsl_is_number($value) || is_bool($value) ? dsl_text($value) : null,
                 'int' => match (true) {
@@ -228,6 +246,10 @@ final class RuntimeLibrary
                     dsl_type($value),
                     $type,
                 ));
+            }
+            if (is_float($result) && !is_finite($result)) {
+                // Ex.: o texto "1e400" é numérico, mas vira INF ao ser convertido.
+                throw new DslRuntimeException(sprintf('campo "%s": o valor não é um número finito', $field));
             }
 
             return $result;
@@ -267,6 +289,17 @@ final class RuntimeLibrary
         }
 
         /**
+         * Versão da URL usada em mensagens: a query string inteira é ocultada,
+         * pois pode conter tokens ou chaves. A URL enviada ao cURL não muda.
+         */
+        function dsl_safe_url(string $url): string
+        {
+            $position = strpos($url, '?');
+
+            return $position === false ? $url : substr($url, 0, $position) . '?[REDACTED]';
+        }
+
+        /**
          * Executa uma requisição HTTP com cURL.
          *
          * Sem body para GET; com body, serializa em JSON e envia
@@ -275,12 +308,20 @@ final class RuntimeLibrary
          * $expectJson) geram DslRuntimeException. A verificação TLS do cURL
          * permanece ativa (padrão) e só HTTP/HTTPS são aceitos.
          *
+         * Mensagens usam dsl_safe_url() e, em falhas de conexão, a descrição
+         * genérica do código de erro do cURL (curl_strerror), que não repete
+         * a URL requisitada.
+         *
+         * Inteiros JSON maiores que PHP_INT_MAX são decodificados como texto
+         * (JSON_BIGINT_AS_STRING), preservando todos os dígitos.
+         *
          * @param list<array{string, string}> $headers Pares [nome, valor].
          *
          * @return mixed Resposta decodificada (objetos JSON viram stdClass), ou null se !$expectJson.
          */
         function dsl_http_request(string $method, string $url, array $headers, mixed $body, bool $expectJson): mixed
         {
+            $safeUrl = dsl_safe_url($url);
             $lines = [];
             $hasContentType = false;
             foreach ($headers as [$name, $value]) {
@@ -311,15 +352,20 @@ final class RuntimeLibrary
 
             $handle = curl_init();
             if ($handle === false) {
-                throw new DslRuntimeException(sprintf('não foi possível iniciar o cURL para %s %s', $method, $url));
+                throw new DslRuntimeException(sprintf('não foi possível iniciar o cURL para %s %s', $method, $safeUrl));
             }
             try {
                 curl_setopt_array($handle, $options);
                 $response = curl_exec($handle);
                 if (!is_string($response)) {
-                    throw new DslRuntimeException(
-                        sprintf('falha de conexão em %s %s: %s', $method, $url, curl_error($handle)),
-                    );
+                    $errorCode = curl_errno($handle);
+                    throw new DslRuntimeException(sprintf(
+                        'falha de conexão em %s %s: %s (cURL %d)',
+                        $method,
+                        $safeUrl,
+                        (string) curl_strerror($errorCode),
+                        $errorCode,
+                    ));
                 }
                 $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
             } finally {
@@ -328,17 +374,17 @@ final class RuntimeLibrary
             }
 
             if ($status < 200 || $status > 299) {
-                throw new DslRuntimeException(sprintf('%s %s respondeu com status HTTP %d', $method, $url, $status));
+                throw new DslRuntimeException(sprintf('%s %s respondeu com status HTTP %d', $method, $safeUrl, $status));
             }
             if (!$expectJson) {
                 return null;
             }
 
             try {
-                return json_decode($response, false, 512, JSON_THROW_ON_ERROR);
+                return json_decode($response, false, 512, JSON_THROW_ON_ERROR | JSON_BIGINT_AS_STRING);
             } catch (JsonException $exception) {
                 throw new DslRuntimeException(
-                    sprintf('a resposta de %s %s não é JSON válido: %s', $method, $url, $exception->getMessage()),
+                    sprintf('a resposta de %s %s não é JSON válido: %s', $method, $safeUrl, $exception->getMessage()),
                 );
             }
         }
@@ -408,7 +454,7 @@ final class RuntimeLibrary
             ?callable $condition,
             ?callable $mapping,
         ): bool {
-            dsl_log($name, sprintf('GET %s -> %s %s', $sourceUrl, $targetMethod, $targetUrl));
+            dsl_log($name, sprintf('GET %s -> %s %s', dsl_safe_url($sourceUrl), $targetMethod, dsl_safe_url($targetUrl)));
 
             try {
                 $sourceHeaderList = $sourceHeaders();
