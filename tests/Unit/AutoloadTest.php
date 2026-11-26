@@ -24,15 +24,22 @@ final class AutoloadTest extends TestCase
     public function testAppNamespaceIsMappedToSrcDirectory(): void
     {
         $projectRoot = dirname(__DIR__, 2);
-        $loader = ClassLoader::getRegisteredLoaders()[$projectRoot . '/vendor'] ?? null;
+        $vendorDir = self::normalizePath($projectRoot . '/vendor');
+        $loader = null;
+        foreach (ClassLoader::getRegisteredLoaders() as $directory => $registered) {
+            // No Windows a chave usa "\" (ex.: C:\proj\vendor); compara normalizado.
+            if (self::normalizePath($directory) === $vendorDir) {
+                $loader = $registered;
+            }
+        }
 
         self::assertInstanceOf(ClassLoader::class, $loader, 'Autoloader do Composer não registrado para este projeto.');
 
         $prefixes = $loader->getPrefixesPsr4();
         self::assertArrayHasKey('App\\', $prefixes);
         self::assertSame(
-            [realpath($projectRoot . '/src')],
-            array_map('realpath', $prefixes['App\\']),
+            [self::normalizePath($projectRoot . '/src')],
+            array_map(self::normalizePath(...), $prefixes['App\\']),
         );
     }
 
@@ -46,6 +53,23 @@ final class AutoloadTest extends TestCase
     {
         $file = (new \ReflectionClass(Application::class))->getFileName();
 
-        self::assertSame(realpath(dirname(__DIR__, 2) . '/src/Cli/Application.php'), $file);
+        self::assertIsString($file);
+        self::assertSame(self::normalizePath(dirname(__DIR__, 2) . '/src/Cli/Application.php'), self::normalizePath($file));
+    }
+
+    /**
+     * Normaliza um caminho para comparação entre plataformas: resolve ".." e
+     * links via realpath(), usa "/" como separador e,
+     * no Windows (sistema de arquivos sem distinção de caixa), ignora a caixa.
+     *
+     * @param string $path Caminho a normalizar.
+     *
+     * @return string
+     */
+    private static function normalizePath(string $path): string
+    {
+        $normalized = str_replace('\\', '/', realpath($path) ?: $path);
+
+        return PHP_OS_FAMILY === 'Windows' ? strtolower($normalized) : $normalized;
     }
 }

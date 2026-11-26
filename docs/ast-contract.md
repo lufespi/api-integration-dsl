@@ -1,7 +1,8 @@
 # Contrato da AST
 
 > **Status: IMPLEMENTADO pelo Analisador Sintático** em [`src/Ast/`](../src/Ast/)
-> (2026-11-20). **Aguarda validação do Gerador**, que consome a AST.
+> (2026-11-20). **Consumida pelo Gerador** ([`generator.md`](generator.md))
+> sem alterações no contrato.
 > Alterações devem ser combinadas entre os responsáveis pelo **Parser** e pelo
 > **Generator**. A gramática que produz estes nós está em
 > [`grammar.md`](grammar.md).
@@ -182,6 +183,10 @@ O Generator pode assumir que a AST recebida:
 | P9 | Respostas em lista | Proposta: se a origem retornar uma lista, aplicar `when`/`map` e enviar item a item | Generator |
 | P11 | Semântica de `+` com textos | Proposta: concatenação quando ao menos um operando é texto | Generator |
 | P12 | Nome do registro quando `alias` é omitido | Ex.: `item`; ou exigir `as` sempre que houver `when`/`map` (verificação semântica) | Grupo |
+
+O Gerador adotou **propostas provisórias** para P6, P7, P8, P9, P11 e P12 e
+fez as verificações mínimas dos itens 3–6 da seção 4 (sem um `Analyzer`
+separado); ver [`generator.md`](generator.md), seções 4 e 7.
 
 ## 6. Decisões tomadas
 
