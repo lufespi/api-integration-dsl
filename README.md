@@ -6,8 +6,9 @@ e compilá-las para código PHP executável.
 Projeto acadêmico da disciplina de **Linguagens Formais e Compiladores - UNISC**.
 
 > **Estado atual:** fundação do projeto (estrutura, CLI, testes e documentação),
-> gramática, Lexer, Parser e AST implementados. O Gerador **ainda não foi
-> implementado** e o pipeline ainda não está integrado à CLI. Ver
+> gramática, Lexer, Parser, AST e Gerador de código PHP implementados
+> ([docs/generator.md](docs/generator.md)). O pipeline ainda não está
+> integrado à CLI. Ver
 > [Estado de implementação](#estado-de-implementação).
 
 ## Objetivo acadêmico
@@ -272,10 +273,10 @@ api-integration-dsl/
 | Documentação de arquitetura e convenções | ✅ Pronto |
 | Gramática (GLC) e especificação do Parser | ✅ Pronto ([docs/grammar.md](docs/grammar.md)) |
 | Parser (descendente recursivo LL(1), erros sintáticos) | ✅ Pronto (`src/Parser`) |
-| AST | ✅ Implementada (`src/Ast`); aguarda validação do Generator |
+| AST | ✅ Implementada (`src/Ast`); consumida pelo Generator sem alterações |
 | Contrato de tokens (`Token`, `TokenType`) | ✅ Pronto (`src/Lexer`) |
 | Lexer (escrito à mão, erros léxicos) | ✅ Pronto (`src/Lexer`, [docs/tokens.md](docs/tokens.md)) |
-| Generator | ⏳ Não iniciado |
+| Generator (AST → PHP com cURL, `when`, `map`, cabeçalhos) | ✅ Pronto (`src/Generator`, [docs/generator.md](docs/generator.md)); decisões provisórias aguardam o grupo |
 | Integração do pipeline na CLI | ⏳ Não iniciado |
 | Exemplos `.dsl` válidos e com erros sintáticos | ✅ Prontos (`examples/valid`, `examples/invalid/syntactic`) |
 | Exemplos `.dsl` com erros léxicos | ✅ Prontos (`examples/invalid/lexical`) |

@@ -75,7 +75,8 @@ o código de saída adequado.
 ```text
 CompilerException                 (base, contém linha/coluna opcionais)   ✅ implementada
 ├── LexicalException              (ex.: caractere inválido, texto não terminado)    ✅ implementada
-└── SyntaxException               (ex.: token inesperado, bloco não fechado)   ✅ implementada
+├── SyntaxException               (ex.: token inesperado, bloco não fechado)   ✅ implementada
+└── GenerationException           (ex.: API inexistente, função desconhecida)  ✅ implementada (src/Generator)
 ```
 
 - `CompilerException` expõe `getSourceLine()`/`getSourceColumn()` (os nomes
@@ -104,8 +105,9 @@ Códigos de saída da CLI (já implementados em `App\Cli\Application`):
 
 ## 5. Gerador de código
 
-O diretório `src/Generator/` está preparado, mas o gerador **não está
-implementado**. Quando implementado, o gerador deverá:
+**Implementado** em `src/Generator/`; detalhes, semântica de runtime,
+verificações e decisões provisórias em [`generator.md`](generator.md).
+Conforme previsto, o gerador deve:
 
 1. Receber uma AST válida (já verificada pelo Parser).
 2. Identificar as APIs e os endpoints envolvidos em cada integração.
@@ -123,8 +125,9 @@ Diretrizes para o código gerado:
 - Gravado em `output/` (diretório ignorado pelo Git).
 - O compilador **nunca executa** o código gerado nem faz requisições HTTP;
   a execução é uma decisão explícita do usuário.
-- Testes do gerador comparam o código produzido (texto) ou sua validade
-  sintática (`php -l`), sem acessar a rede.
+- Testes do gerador verificam o código produzido (texto e `php -l`), executam
+  suas funções com dados simulados e rodam o script contra um servidor HTTP
+  local (`127.0.0.1`), sem acessar a rede externa.
 
 ## 6. Estrutura de diretórios
 
