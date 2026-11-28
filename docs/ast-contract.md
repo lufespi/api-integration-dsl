@@ -165,24 +165,27 @@ O Generator pode assumir que a AST recebida:
 2. Toda `Api` tem ao menos um `Endpoint`; todo bloco `map` presente tem ao
    menos um `FieldMapping`.
 
-**Ainda não garantido** (verificações semânticas, pendência P2):
+**Garantido pelo `Analyzer`** (`src/Semantic`, [`semantic-analysis.md`](semantic-analysis.md)),
+desde que a AST tenha passado por `Analyzer::analyze()` antes do Generator:
 
-3. Ausência de nomes de API duplicados e de endpoints duplicados na mesma API.
+3. Ausência de nomes duplicados: APIs, endpoints na mesma API, cabeçalhos na
+   mesma API, integrações e campos do mesmo `map`.
 4. Toda referência `source`/`target` aponta para uma API e um endpoint existentes.
-5. Toda `FieldReference` começa pelo `alias` da integração.
-6. Toda `FunctionCall` usa uma função conhecida, com a quantidade certa de argumentos.
+5. Toda `FieldReference` de `condition` e `mappings` começa pelo `alias` da
+   integração; se `alias` é `null`, não há `FieldReference` nessas expressões.
+   Cabeçalhos (`Header.value`) nunca contêm `FieldReference`.
+6. Toda `FunctionCall` usa uma função conhecida, com a quantidade certa de
+   argumentos (tabela em `Analyzer::DEFAULT_FUNCTIONS`, pendência P7).
 
 ## 5. Decisões pendentes
 
 | # | Questão | Opções / observações | Decidem |
 |---|---|---|---|
-| P2 | Quem faz a verificação semântica (itens 3–6 da seção 4)? | Etapa separada `Analyzer` entre Parser e Generator (recomendado), ou o próprio Generator | Grupo |
 | P6 | Mapeamento: semântica de `mappings` vazio | Proposta: enviar o registro de origem inteiro | Generator |
-| P7 | Funções embutidas disponíveis | Sugestão: `env(nome)`, `upper(texto)`, `lower(texto)`, `now()` | Generator |
+| P7 | Funções embutidas disponíveis | Tabela provisória no `Analyzer`: `env/1`, `upper/1`, `lower/1`, `now/0`; o Generator deve confirmar ou alterar | Generator |
 | P8 | Parâmetros de caminho e query string | Ex.: `/users/{id}`; a gramática aceita qualquer texto iniciado por `/` | Generator |
 | P9 | Respostas em lista | Proposta: se a origem retornar uma lista, aplicar `when`/`map` e enviar item a item | Generator |
 | P11 | Semântica de `+` com textos | Proposta: concatenação quando ao menos um operando é texto | Generator |
-| P12 | Nome do registro quando `alias` é omitido | Ex.: `item`; ou exigir `as` sempre que houver `when`/`map` (verificação semântica) | Grupo |
 
 O Gerador adotou **propostas provisórias** para P6, P7, P8, P9, P11 e P12 e
 fez as verificações mínimas dos itens 3–6 da seção 4 (sem um `Analyzer`
@@ -202,3 +205,5 @@ Propostas pelo Analisador Sintático em 2026-11-20, implementadas em
 | P6 (parcial) | Mapeamento de campos | Bloco `map` → `Integration.mappings` (lista de `FieldMapping`) |
 | P7 (parcial) | Cabeçalhos e autenticação | `header` → `Api.headers`; segredos via `env("...")` |
 | P10 | Posição em todos os nós? | Sim: `line` e `column` em todos os nós, exceto `Program` |
+| P2 | Quem faz a verificação semântica? | Etapa separada `Analyzer` entre Parser e Generator ([`semantic-analysis.md`](semantic-analysis.md)); **aguarda validação do grupo** |
+| P12 | Nome do registro quando `alias` é omitido | Sem nome implícito: `as` só pode ser omitido se nenhum campo for referenciado (erro semântico S8); **aguarda validação do grupo** |

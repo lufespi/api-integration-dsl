@@ -23,6 +23,9 @@ Parser             (src/Parser)      tokens       -> AST (valida a gramática)
 AST                (src/Ast)         representação estrutural do programa
     |
     v
+Analyzer           (src/Semantic)    AST          -> mesma AST, com as regras de significado verificadas
+    |
+    v
 PhpGenerator       (src/Generator)   AST          -> código PHP (string)
     |
     v
@@ -44,6 +47,7 @@ desenvolva e teste seu componente de forma isolada.
 | **Lexer** | `string` (texto-fonte) | lista de tokens | reconhecer lexemas, descartar espaços/comentários, registrar linha/coluna, reportar erros léxicos | verificar a ordem dos tokens |
 | **Parser** | lista de tokens | AST (`Program`) | aplicar a GLC, construir a AST, reportar erros sintáticos com posição | ler arquivos, gerar código |
 | **AST** | — | — | representar APIs, endpoints e integrações de forma estrutural (contrato Parser → Generator) | lógica de análise ou geração |
+| **Analyzer** | AST sintaticamente válida | a mesma AST | verificar nomes únicos, referências `from`/`to`, alias e funções; reportar erros semânticos com posição ([`semantic-analysis.md`](semantic-analysis.md)) | validar sintaxe, gerar código |
 | **Generator** | AST válida | `string` com código PHP | produzir código PHP com cURL que executa a integração | validar sintaxe, executar o código gerado |
 | **CLI** | argumentos da linha de comando | arquivo em `output/`, mensagens, código de saída | validar argumentos, coordenar o pipeline, exibir erros | regras da linguagem |
 
@@ -58,6 +62,9 @@ $tokens = (new Lexer($source))->tokenize();        // list<Token>
 
 // Parser
 $program = (new Parser($tokens))->parse();         // AST (ver docs/ast-contract.md)
+
+// Analyzer
+$program = (new Analyzer())->analyze($program);    // a mesma AST, ou SemanticException
 
 // Generator
 $php = (new PhpGenerator())->generate($program);   // string
@@ -76,7 +83,8 @@ o código de saída adequado.
 CompilerException                 (base, contém linha/coluna opcionais)   ✅ implementada
 ├── LexicalException              (ex.: caractere inválido, texto não terminado)    ✅ implementada
 ├── SyntaxException               (ex.: token inesperado, bloco não fechado)   ✅ implementada
-└── GenerationException           (ex.: API inexistente, função desconhecida)  ✅ implementada (src/Generator)
+├── SemanticException             (ex.: API inexistente, nome duplicado, função desconhecida)   ✅ implementada (src/Semantic)
+└── GenerationException           (ex.: método HTTP ou URL não suportados na geração)  ✅ implementada (src/Generator)
 ```
 
 - `CompilerException` expõe `getSourceLine()`/`getSourceColumn()` (os nomes
@@ -90,6 +98,10 @@ CompilerException                 (base, contém linha/coluna opcionais)   ✅ i
   em modo pânico; a mensagem já vem formatada para o usuário (ver
   [`grammar.md`](grammar.md), seção 12). A CLI só precisa imprimir
   `getMessage()` em stderr e devolver `EXIT_COMPILATION_ERROR`.
+- `SemanticException` reúne **todos** os erros semânticos (`errors()`, lista de
+  `App\Semantic\SemanticError`), ordenados por posição no fonte; o formato da
+  mensagem é o mesmo da `SyntaxException` (ver
+  [`semantic-analysis.md`](semantic-analysis.md), seção 4).
 - Violações de contrato entre etapas (ex.: lista de tokens sem `EOF`) não são
   erros do programa `.dsl`: o Parser lança `InvalidArgumentException` ou
   `LogicException`, tratadas pela CLI como erro interno.
@@ -139,10 +151,12 @@ examples/valid/       programas .dsl válidos (casos de demonstração e teste)
 examples/invalid/     programas .dsl com erros, separados por etapa:
   lexical/              erros detectados pelo Lexer
   syntactic/            erros detectados pelo Parser
+  semantic/             erros detectados pelo Analyzer
 src/Cli/              entrada de linha de comando (coordenação do pipeline)
 src/Lexer/            analisador léxico
 src/Parser/           analisador sintático
 src/Ast/              nós da AST (se o grupo optar por classes)
+src/Semantic/         analisador semântico
 src/Generator/        gerador de código PHP
 src/Exceptions/       exceções compartilhadas do compilador
 tests/Unit/           testes unitários por componente
@@ -199,3 +213,4 @@ apenas carrega o autoload e delega a essa classe.
 | D12 | Recuperação de erros sintáticos em modo pânico, sincronizando em `api`/`integration` | Relatar vários erros independentes em uma execução, sem erros em cascata |
 | D13 | AST em classes `readonly` com `toArray()` | Tipagem forte para o Generator, sem perder o formato de arrays proposto ([`ast-contract.md`](ast-contract.md)) |
 | D14 | Contrato de tokens (`Token`, `TokenType`) fixado em `src/Lexer/` antes do Lexer | Permitir desenvolver e testar o Parser em paralelo; com o Lexer pronto, os testes do Parser passaram a usá-lo |
+| D15 | Análise semântica em etapa própria (`Analyzer`) entre Parser e Generator, coletando todos os erros | O Generator assume uma AST com significado válido; erros do programa saem com linha e coluna, não como falhas na geração ([`semantic-analysis.md`](semantic-analysis.md)) |

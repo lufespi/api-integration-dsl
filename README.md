@@ -63,7 +63,7 @@ sintáticos) está em [docs/grammar.md](docs/grammar.md); exemplos em
 ## Arquitetura
 
 ```text
-Arquivo .dsl -> Lexer -> Tokens -> Parser -> AST -> PhpGenerator -> Arquivo PHP
+Arquivo .dsl -> Lexer -> Tokens -> Parser -> AST -> Analyzer -> PhpGenerator -> Arquivo PHP
 ```
 
 | Componente | Responsabilidade |
@@ -71,6 +71,7 @@ Arquivo .dsl -> Lexer -> Tokens -> Parser -> AST -> PhpGenerator -> Arquivo PHP
 | Lexer | Texto-fonte → tokens; erros léxicos |
 | Parser | Tokens → AST; validação da gramática; erros sintáticos |
 | AST | Representação estrutural de APIs, endpoints e integrações |
+| Analyzer | AST → AST verificada; erros semânticos (nomes, referências, alias, funções) |
 | Generator | AST → código PHP (cURL + JSON) |
 | CLI | Coordena o pipeline e apresenta mensagens ao usuário |
 
@@ -240,12 +241,14 @@ api-integration-dsl/
 │   ├── valid/               programas .dsl válidos
 │   └── invalid/
 │       ├── lexical/         programas com erros léxicos
-│       └── syntactic/       programas com erros sintáticos
+│       ├── syntactic/       programas com erros sintáticos
+│       └── semantic/        programas com erros semânticos
 ├── src/
 │   ├── Cli/                 CLI (App\Cli\Application)
 │   ├── Lexer/               analisador léxico
 │   ├── Parser/              analisador sintático
 │   ├── Ast/                 nós da AST
+│   ├── Semantic/            analisador semântico
 │   ├── Generator/           gerador de código PHP
 │   └── Exceptions/          exceções do compilador
 ├── tests/
@@ -276,10 +279,12 @@ api-integration-dsl/
 | AST | ✅ Implementada (`src/Ast`); consumida pelo Generator sem alterações |
 | Contrato de tokens (`Token`, `TokenType`) | ✅ Pronto (`src/Lexer`) |
 | Lexer (escrito à mão, erros léxicos) | ✅ Pronto (`src/Lexer`, [docs/tokens.md](docs/tokens.md)) |
+| Analisador semântico (`Analyzer`, erros semânticos) | ✅ Implementado (`src/Semantic`, [docs/semantic-analysis.md](docs/semantic-analysis.md)); aguarda validação do grupo |
 | Generator (AST → PHP com cURL, `when`, `map`, cabeçalhos) | ✅ Pronto, com correções pós-code review (`src/Generator`, [docs/generator.md](docs/generator.md)); decisões provisórias aguardam o grupo |
 | Integração do pipeline na CLI | ⏳ Não iniciado |
 | Exemplos `.dsl` válidos e com erros sintáticos | ✅ Prontos (`examples/valid`, `examples/invalid/syntactic`) |
 | Exemplos `.dsl` com erros léxicos | ✅ Prontos (`examples/invalid/lexical`) |
+| Exemplos `.dsl` com erros semânticos | ✅ Prontos (`examples/invalid/semantic`) |
 
 ## Equipe e responsabilidades
 
