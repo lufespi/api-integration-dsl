@@ -368,7 +368,7 @@ final class ApplicationTest extends TestCase
     #[DataProvider('validExamples')]
     public function testValidExampleIsCompiledToOutputDirectory(string $path): void
     {
-        $target = $this->outputDirectory . '/' . basename($path, '.dsl') . '.php';
+        $target = $this->outputDirectory . DIRECTORY_SEPARATOR . basename($path, '.dsl') . '.php';
 
         $exitCode = $this->runCli([$path]);
 

@@ -56,7 +56,7 @@ final class Application
         private $stderr,
         ?string $outputDirectory = null,
     ) {
-        $this->outputDirectory = rtrim($outputDirectory ?? dirname(__DIR__, 2) . '/output', '/\\');
+        $this->outputDirectory = rtrim($outputDirectory ?? dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'output', '/\\');
     }
 
     /**
