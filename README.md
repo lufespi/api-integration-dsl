@@ -1,327 +1,298 @@
 # API Integration DSL
 
-Linguagem de Domínio Específico (DSL) para descrever integrações entre APIs HTTP
-e compilá-las para código PHP executável.
+Linguagem de domínio específico (DSL) para descrever integrações entre APIs
+HTTP e compilador que a traduz para um script PHP executável. Trabalho da
+disciplina de **Linguagens Formais e Compiladores — UNISC**.
 
-Projeto acadêmico da disciplina de **Linguagens Formais e Compiladores - UNISC**.
+Um programa `.dsl` declara APIs, seus endpoints e integrações que buscam
+registros em um endpoint de origem, filtram (`when`), transformam (`map`) e
+enviam os dados a um endpoint de destino. O compilador aplica análise léxica,
+sintática (LL(1)) e semântica e gera PHP que faz as requisições com cURL.
 
-> **Estado atual:** compilador funcional. Lexer, Parser, AST, Analisador
-> semântico ([docs/semantic-analysis.md](docs/semantic-analysis.md)) e Gerador
-> de código PHP ([docs/generator.md](docs/generator.md)) estão integrados à
-> CLI, que grava o PHP gerado em `output/`. Ver
-> [Estado de implementação](#estado-de-implementação).
+## Integrantes
 
-## Objetivo acadêmico
-
-Aplicar, em um compilador completo e de escopo reduzido, os conceitos da
-disciplina:
-
-- **análise léxica**: reconhecimento de tokens a partir do texto-fonte;
-- **análise sintática**: validação por uma gramática livre de contexto (GLC)
-  e construção de uma árvore sintática abstrata (AST);
-- **análise semântica**: verificação de nomes, referências, alias e funções
-  sobre a AST;
-- **geração de código**: tradução da AST para código PHP.
-
-## A DSL em resumo
-
-Um programa `.dsl` declara:
-
-- **APIs**: identificador e endereço-base;
-- **endpoints** de cada API: identificador, método HTTP e caminho;
-- **integrações**: buscar dados em um endpoint de origem e enviá-los a um
-  endpoint de destino.
-
-O compilador gera um script PHP que, usando cURL, faz a requisição à origem,
-interpreta a resposta JSON e encaminha os dados ao destino.
-
-Cada integração pode ainda filtrar registros com uma condição (`when`) e montar
-o registro de destino campo a campo, com tipos de dados (`map`):
-
-```text
-integration sincronizarAssinantes {
-    from Crm.listContacts as contato;
-    to Mailer.upsertSubscriber;
-    when contato.email != null && contato.optIn;
-    map {
-        email: string = contato.email;
-        age: int = 2026 - contato.birthYear;
-    }
-}
-```
-
-A gramática completa (GLC, precedência de operadores, análise LL(1) e erros
-sintáticos) está em [docs/grammar.md](docs/grammar.md); exemplos em
-[examples/](examples/).
+| Integrante | Contribuição |
+|---|---|
+| Bruno Comassetto | Analisador léxico: Lexer, tokens, erros léxicos e [docs/tokens.md](docs/tokens.md) |
+| Paula Camilly da Silva | Analisador sintático: gramática (GLC), Parser LL(1), AST, erros sintáticos e [docs/grammar.md](docs/grammar.md) |
+| Luis Fernando Souza Pinto | Gerador de código PHP e integração das contribuições |
+| Pedro Augusto | Analisador semântico, CLI, exemplos, testes integrados e relatório |
 
 ## Tecnologias
 
-- PHP 8.3 (puro, sem frameworks)
-- Composer (dependências e autoload PSR-4, namespace `App\` → `src/`)
-- PHPUnit 12
-- Docker + Docker Compose (ambiente único de desenvolvimento)
-- Git
+PHP 8.3 (sem frameworks), Composer (autoload PSR-4, `App\` → `src/`),
+PHPUnit 12, Docker com Docker Compose e GitHub Actions.
 
 ## Arquitetura
 
 ```text
-Arquivo .dsl -> Lexer -> Tokens -> Parser -> AST -> Analyzer -> PhpGenerator -> Arquivo PHP
+arquivo .dsl → Lexer → tokens → Parser → AST → Analyzer → PhpGenerator → output/<nome>.php
 ```
 
-| Componente | Responsabilidade |
-|---|---|
-| Lexer | Texto-fonte → tokens; erros léxicos |
-| Parser | Tokens → AST; validação da gramática; erros sintáticos |
-| AST | Representação estrutural de APIs, endpoints e integrações |
-| Analyzer | AST → AST verificada; erros semânticos (nomes, referências, alias, funções) |
-| Generator | AST → código PHP (cURL + JSON) |
-| CLI | Coordena o pipeline e apresenta mensagens ao usuário |
+| Componente | Pasta | Responsabilidade |
+|---|---|---|
+| Lexer | `src/Lexer` | Texto-fonte → lista de tokens; erros léxicos |
+| Parser | `src/Parser` | Tokens → AST, por descida recursiva LL(1); erros sintáticos com recuperação em modo pânico |
+| AST | `src/Ast` | Nós imutáveis (`final readonly`) que representam APIs, endpoints, integrações e expressões |
+| Analyzer | `src/Semantic` | Verifica nomes, referências, alias e funções sobre a AST; erros semânticos |
+| Generator | `src/Generator` | AST → código PHP autônomo (cURL + JSON) |
+| CLI | `main.php`, `src/Cli` | Valida argumentos, coordena o pipeline, grava a saída e define o código de saída |
 
-Detalhes: [docs/architecture.md](docs/architecture.md) ·
-contrato da AST: [docs/ast-contract.md](docs/ast-contract.md) ·
-tokens: [docs/tokens.md](docs/tokens.md).
+Cada etapa conhece apenas a saída da anterior:
+
+```php
+$tokens  = (new Lexer($source))->tokenize();        // list<Token>
+$program = (new Parser($tokens))->parse();          // App\Ast\Program
+$program = (new Analyzer())->analyze($program);     // o mesmo Program, verificado
+$php     = (new PhpGenerator())->generate($program); // string
+```
+
+Os erros do programa são subclasses de `App\Exceptions\CompilerException`, com
+linha e coluna no fonte (`getSourceLine()`/`getSourceColumn()`):
+
+| Exceção | Lançada por | Observação |
+|---|---|---|
+| `LexicalException` | Lexer | Para no primeiro erro |
+| `SyntaxException` | Parser | Reúne todos os erros (`errors()`), graças à recuperação em modo pânico |
+| `SemanticException` | Analyzer | Reúne todos os erros, ordenados por posição |
+| `GenerationException` | Generator | Restrições da geração (métodos, URLs, cabeçalhos, parâmetros de caminho) |
+
+Violações de contrato entre etapas (por exemplo, lista de tokens sem `EOF`)
+não são erros do programa: lançam `InvalidArgumentException`/`LogicException`
+e a CLI as relata como erro interno.
 
 ## Pré-requisitos
 
-Apenas **Docker Desktop** (Windows/macOS) ou **Docker Engine + plugin Compose**
-(Linux), e Git.
+- **Docker** (recomendado): Docker Desktop ou Docker Engine com o plugin
+  Compose, e Git.
+- **PHP local** (alternativa): PHP 8.3+ com as extensões `mbstring`, `curl`,
+  `dom`, `xml`, `xmlwriter` e `tokenizer`, e Composer 2.
 
-**Todo o desenvolvimento é feito via Docker**: PHP, Composer e PHPUnit rodam
-somente dentro do contêiner `app`. Não é necessário — nem recomendado — usar
-PHP ou Composer instalados na máquina; assim todos os integrantes usam
-exatamente as mesmas versões.
+O script gerado precisa apenas de PHP 8.3+ com `curl` e `json`.
 
-## Instalação e uso
+## Instalação
 
-Os comandos são os mesmos no Linux (bash/zsh) e no Windows (PowerShell).
-
-```bash
-docker compose build                          # cria a imagem (PHP 8.3 CLI + Composer 2)
-docker compose run --rm app php -v            # confere a versão do PHP
-docker compose run --rm app composer install  # instala as dependências do composer.lock em vendor/
-docker compose run --rm app composer test     # executa os testes
-docker compose run --rm app php main.php --help
-docker compose run --rm app php main.php examples/valid/exemplo1.dsl
-```
-
-Rode `composer install` de novo sempre que o `composer.lock` mudar (por
-exemplo, depois de um `git pull`). Rode `docker compose build` de novo quando
-`docker/Dockerfile` mudar.
-
-Verificações extras, as mesmas que o CI executa:
+Com Docker:
 
 ```bash
-docker compose run --rm app composer validate --strict      # composer.json válido e composer.lock sincronizado
-docker compose run --rm app composer check-platform-reqs    # PHP e extensões exigidos pelas dependências
-docker compose run --rm app php -m                          # lista as extensões disponíveis
+docker compose build
+docker compose run --rm app composer install
 ```
 
-A imagem oficial `php:8.3-cli` já inclui todas as extensões usadas pelo
-projeto, pelo PHPUnit e pelo futuro código gerado: `curl`, `dom`, `json`,
-`libxml`, `mbstring`, `tokenizer`, `xml` e `xmlwriter`. O Dockerfile só
-acrescenta `git` e `unzip`, que o Composer usa para baixar e extrair pacotes.
-
-Para adicionar ou atualizar dependências, também use o contêiner
-(ex.: `docker compose run --rm app composer require --dev <pacote>`), após
-acordo do grupo, e versione `composer.json` e `composer.lock` no mesmo commit.
-
-O projeto é montado em `/app` dentro do contêiner (bind mount): edite os
-arquivos normalmente no host. Há um único serviço (`app`), sem portas expostas.
-
-O contêiner roda com um usuário não-root (`app`), com UID/GID configuráveis.
-
-**Linux (Docker Engine + Compose):** se o seu usuário não tiver UID 1000
-(confira com `id -u`), crie um `.env` antes do build. Assim `vendor/` e
-`output/` pertencem ao seu usuário, e não ao root:
+No Linux, se o seu usuário não tiver UID 1000, crie o `.env` antes do build,
+para que `vendor/` e `output/` pertençam a você:
 
 ```bash
 printf "UID=%s\nGID=%s\n" "$(id -u)" "$(id -g)" > .env
-docker compose build
 ```
 
-**Windows (Docker Desktop):**
-
-- Use o Docker Desktop com o backend WSL 2 (padrão nas versões atuais).
-- Não é preciso criar `.env`; os valores padrão funcionam.
-- Para melhor desempenho do bind mount, clone o repositório dentro do sistema
-  de arquivos do WSL (ex.: `~/projetos`, não `C:\...`) e rode os comandos no
-  terminal do WSL. Pelo PowerShell os comandos também funcionam, porém mais
-  lentos.
-- O `.gitattributes` força finais de linha LF, então não é preciso ajustar o
-  `core.autocrlf`.
-
-**Se o build falhar com `Temporary failure resolving 'deb.debian.org'`** (ou o
-`composer install` não alcançar o Packagist): o DNS que o Docker herdou da
-máquina não responde dentro dos contêineres. É configuração da máquina, não do
-projeto. No Linux, defina DNS públicos para o Docker e reinicie-o (isso
-interrompe os contêineres em execução):
+Com PHP local:
 
 ```bash
-echo '{ "dns": ["1.1.1.1", "8.8.8.8"] }' | sudo tee /etc/docker/daemon.json
-sudo systemctl restart docker
+composer install
 ```
 
-No Docker Desktop, o mesmo JSON vai em *Settings → Docker Engine*.
+## Uso
 
-O Docker é o ambiente de **desenvolvimento** do compilador. O código PHP gerado
-pelo compilador é um script autônomo e pode rodar em qualquer PHP com as
-extensões `curl` e `json`, com ou sem Docker.
-
-### Linha de comando
-
-```text
-docker compose run --rm app php main.php <arquivo.dsl>
-docker compose run --rm app php main.php --help
+```bash
+docker compose run --rm app php main.php examples/valid/exemplo1.dsl   # Docker
+php main.php examples/valid/exemplo1.dsl                               # PHP local
+php main.php --help
 ```
 
-A CLI executa o pipeline completo (Lexer → Parser → Analyzer → PhpGenerator) e
-grava o resultado em `output/`, com o nome do arquivo de entrada:
-
 ```text
-$ docker compose run --rm app php main.php examples/valid/exemplo1.dsl
 Compilação concluída: examples/valid/exemplo1.dsl -> output/exemplo1.php
 ```
 
-- A compilação **não executa** o PHP gerado e **não faz** requisições HTTP.
-- Erros léxicos, sintáticos, semânticos e de geração são exibidos em stderr,
-  com linha e coluna; nesse caso nenhum arquivo é gerado, e um
-  `output/<nome>.php` deixado por uma compilação anterior é removido, para não
-  ser confundido com o resultado atual.
-- O arquivo é gravado de forma atômica (temporário + renomeação): uma falha de
-  escrita nunca deixa um `.php` parcial.
+O PHP gerado é gravado em `output/<nome-do-arquivo>.php` de forma atômica
+(arquivo temporário + renomeação). A compilação não executa o script nem faz
+requisições HTTP. Em caso de erro, a mensagem vai para stderr, nenhum arquivo
+é gravado e a saída de uma compilação anterior com o mesmo nome é removida:
 
 ```text
-$ docker compose run --rm app php main.php examples/invalid/semantic/01-api-inexistente.dsl
-Erro semântico na linha 13, coluna 8: API 'Crm' não declarada na cláusula 'to' da integração 'copiarUsuarios'; APIs declaradas: Users
+$ php main.php examples/invalid/syntactic/04-multiplos-erros.dsl
+2 erros sintáticos encontrados:
+  - Erro sintático na linha 11, coluna 24: esperado método HTTP (GET, POST, PUT, PATCH ou DELETE, em maiúsculas) no endpoint 'listUsers', encontrado: identificador 'get'
+  - Erro sintático na linha 23, coluna 15: esperado tipo de dado (string, int, float ou bool) para o campo 'nome', encontrado: identificador 'text'
 Nenhum arquivo PHP foi gerado.
 ```
 
 | Código de saída | Significado |
 |---|---|
 | 0 | Compilação concluída ou ajuda exibida |
-| 1 | Erro de compilação (léxico, sintático, semântico ou de geração) ou falha de leitura/escrita |
+| 1 | Erro léxico, sintático, semântico ou de geração, ou falha de leitura/escrita |
 | 2 | Uso incorreto ou arquivo de entrada inválido |
 
-O script gerado é executado à parte, quando desejado, com as variáveis de
-ambiente usadas em `env("...")` (ver [docs/generator.md](docs/generator.md)):
+## Exemplos da DSL
+
+```text
+api Crm {
+    base "https://crm.example.com/v1";
+    header "Authorization" = "Bearer " + env("CRM_TOKEN");
+    endpoint listContacts GET "/contacts";
+}
+
+api Mailer {
+    base "https://mailer.example.com/api";
+    endpoint upsertSubscriber PUT "/subscribers";
+}
+
+integration sincronizarAssinantes {
+    from Crm.listContacts as contato;
+    to Mailer.upsertSubscriber;
+    when contato.email != null && contato.optIn;
+    map {
+        email: string = contato.email;
+        fullName: string = contato.firstName + " " + contato.lastName;
+        age: int = 2026 - contato.birthYear;
+        active: bool = !contato.archived;
+    }
+}
+```
+
+Em [examples/](examples/):
+
+- `valid/`: `exemplo1.dsl` (integração mínima), `exemplo2.dsl` (cabeçalhos,
+  `env` e `when`) e `exemplo3.dsl` (`map` com os quatro tipos e duas integrações);
+- `invalid/lexical/`, `invalid/syntactic/` e `invalid/semantic/`: um erro por
+  arquivo (ou vários, nos de múltiplos erros), com a mensagem esperada nas
+  linhas `// Erro esperado:`, conferidas pelos testes.
+
+A especificação formal está em [docs/grammar.md](docs/grammar.md) e a léxica em
+[docs/tokens.md](docs/tokens.md).
+
+## Execução do PHP gerado
 
 ```bash
 CRM_TOKEN=... php output/exemplo3.php
+docker compose run --rm -e CRM_TOKEN=... app php output/exemplo3.php
 ```
 
-**Funções embutidas:** apenas `env("NOME")`, que lê uma variável de ambiente
-no momento da execução do script gerado. Recebe exatamente um argumento, que
-deve ser um texto literal com um nome de variável válido (letras, dígitos e
-`_`, sem começar por dígito); qualquer outra função é erro semântico.
+As variáveis usadas em `env("...")` devem estar definidas no ambiente. Os
+endereços dos exemplos são fictícios (`example.com`); para uma execução real,
+aponte `base` para um serviço existente. Saída ilustrativa:
+
+```text
+[sincronizarAssinantes] GET https://crm.example.com/v1/contacts -> PUT https://mailer.example.com/api/subscribers
+[sincronizarAssinantes] 3 registro(s) recebido(s): 2 enviado(s), 1 ignorado(s) pela condição, 0 com falha.
+Concluído: 2 integração(ões) sem falhas.
+```
+
+Erros vão para stderr como `[integração] ERRO: ...`. O script termina com 0
+sem falhas e com 1 se qualquer integração falhar. Com a constante
+`DSL_NO_AUTORUN` definida antes de incluí-lo, o script apenas declara suas
+funções (usado nos testes).
+
+O script contém, nesta ordem: a biblioteca de runtime (`dsl_http_request`,
+`dsl_field`, `dsl_add`, ...), uma função `dsl_api_headers_N` por API usada, as
+funções `dsl_condition_N`, `dsl_map_N` e `dsl_integration_N` de cada
+integração e a chamada a `dsl_main()`. A mesma AST produz sempre o mesmo texto.
 
 ## Testes
 
 ```bash
-docker compose run --rm app composer test               # todos os testes
-docker compose run --rm app composer test:unit          # apenas unitários
-docker compose run --rm app composer test:integration   # apenas integração (CLI ponta a ponta)
+docker compose run --rm app composer test               # todos
+docker compose run --rm app composer test:unit
+docker compose run --rm app composer test:integration   # CLI ponta a ponta
+docker compose run --rm app composer validate --strict
+docker compose run --rm app composer check-platform-reqs
 ```
 
-Os testes não acessam a rede nem APIs externas.
+Com PHP local, os mesmos comandos sem o prefixo `docker compose run --rm app`.
+Os testes não acessam a rede externa: os scripts gerados são executados contra
+um servidor HTTP local (`php -S` em `127.0.0.1`). O workflow
+[.github/workflows/ci.yaml](.github/workflows/ci.yaml) executa a validação do
+Composer e a suíte em todo pull request e push para `main`.
 
-## Integração contínua (GitHub Actions)
+## Funcionalidades e limitações
 
-O workflow [`.github/workflows/ci.yaml`](.github/workflows/ci.yaml) roda
-automaticamente em todo **Pull Request para `main`** e em todo **push para
-`main`**. O resultado aparece na aba *Checks* do PR e na aba *Actions* do
-repositório.
+### Execução de uma integração
 
-O CI roda direto no runner Ubuntu do GitHub, sem Docker, com PHP 8.3 e as
-mesmas extensões da imagem de desenvolvimento. Assim ele fica mais simples e
-rápido; o Docker continua sendo o ambiente padrão local.
+1. Calcula os cabeçalhos da API de origem e os da API de destino; cada API só
+   recebe os próprios cabeçalhos, então credenciais nunca passam de uma API a
+   outra. Falha de configuração (ex.: `env` ausente ou vazia) interrompe a
+   integração antes de qualquer requisição.
+2. Faz `GET` em `baseUrl + path` e decodifica o JSON: um objeto é um registro;
+   uma lista é um registro por item (cada item deve ser objeto).
+3. Para cada registro, avalia `when`; monta o payload com `map` (ou envia o
+   registro original, sem `map`) e o envia ao destino com `POST`, `PUT` ou
+   `PATCH` e body JSON.
+4. Falha em um registro é reportada e os demais continuam; falha na origem
+   interrompe só aquela integração.
 
-| Passo | Comando | Falha quando |
+### Expressões
+
+| DSL | Semântica em execução |
+|---|---|
+| `c.a.b` | Campo aninhado do registro; ausente (ou caminho que atravessa um não objeto) → `null` |
+| `env("X")` | Variável de ambiente obrigatória; o nome é sempre literal |
+| `&&`, `\|\|`, `!` | Operadores do PHP: curto-circuito e conversão booleana (`null`, `0`, `""`, `"0"` são falsos) |
+| `==`, `!=` | Números pelo valor (`100 == 100.0`); demais valores estritamente (`"1" != 1`) |
+| `<`, `<=`, `>`, `>=` | Dois números ou dois textos; outros pares são erro |
+| `+` | Concatenação se algum operando for texto em execução; senão, soma |
+| `-`, `*`, `/`, `%` | Exigem números; divisão por zero é erro; `%` com decimais usa `fmod` |
+| `-x` | Exige número |
+
+Cada nó vira uma chamada de função ou uma expressão entre parênteses, então a
+precedência e a associatividade são exatamente as da AST. Em texto, decimais
+usam a menor representação que preserva o valor (`100.0` → `"100"`) e
+booleanos viram `"true"`/`"false"`. Resultados não finitos (`INF`, `NAN`) e
+números JSON fora do intervalo de `float` são erro no registro.
+
+### Conversões do `map`
+
+| Tipo | Aceita | Rejeita |
 |---|---|---|
-| 1. Checkout | — | — |
-| 2. PHP 8.3 + Composer 2 | `setup-php` | a action não consegue preparar o PHP (raro; rode de novo) |
-| 3. Validar Composer | `composer validate --strict` | `composer.json` inválido ou `composer.lock` desatualizado em relação a ele |
-| 4. Instalar dependências | `composer install` | `composer.lock` incompatível com PHP 8.3 ou pacote indisponível |
-| 5. Requisitos de plataforma | `composer check-platform-reqs` | falta extensão ou versão de PHP exigida por alguma dependência |
-| 6. Testes | `composer test` | algum teste PHPUnit falhou, gerou erro, aviso ou foi marcado como arriscado |
+| `string` | texto, número, booleano | `null`, lista, objeto |
+| `int` | inteiro, decimal sem parte fracionária, texto inteiro | `3.7`, `"abc"`, `null`, booleano |
+| `float` | número, texto numérico | `"abc"`, `null`, booleano, valor não finito |
+| `bool` | booleano, `1`/`0`, `"true"`/`"false"`/`"1"`/`"0"` | outros valores |
 
-O PR só deve ser integrado com o check **CI** verde. O workflow usa só
-permissão de leitura (`contents: read`), não usa secrets e não publica nada.
+Conversões que perderiam informação são erros, não truncamentos.
 
-**Como interpretar uma falha:**
+### HTTP e segurança
 
-1. No PR, clique em *Details* ao lado do check **CI** e abra o passo marcado
-   com ❌. O log mostra o comando e a mensagem de erro.
-2. Reproduza localmente com o mesmo comando no contêiner, por exemplo
-   `docker compose run --rm app composer test`.
-3. Causas mais comuns:
-   - **passo 3:** alguém editou o `composer.json` sem atualizar o lock. Rode
-     `docker compose run --rm app composer update --lock` e versione o
-     `composer.lock`;
-   - **passo 6:** leia o nome do teste e a asserção que falhou no log; o
-     PHPUnit mostra o valor esperado e o obtido.
-4. Corrija, faça push na mesma branch e o CI roda de novo sozinho.
+- Origem apenas `GET`; destino `POST`, `PUT` ou `PATCH`. Outros métodos em
+  endpoints usados são `GenerationException`.
+- `Content-Type: application/json` é adicionado ao body, exceto se a API já
+  declarar `Content-Type`. Timeouts: 10 s de conexão e 30 s por requisição.
+- Somente status `2xx` é sucesso; redirecionamentos não são seguidos; a
+  verificação TLS do cURL é mantida e só `http`/`https` são aceitos.
+- Inteiros JSON maiores que `PHP_INT_MAX` são lidos como texto, preservando
+  os dígitos.
+- Nenhum texto da AST vira código: strings e nomes são emitidos com
+  `var_export`, e texto em comentários é neutralizado. Não há `eval`,
+  `include` nem comandos de sistema no script gerado.
+- Os logs ocultam a query string das URLs (`?[REDACTED]`) e nunca exibem
+  valores de cabeçalhos ou de variáveis de ambiente. Valores de cabeçalho com
+  quebra de linha são rejeitados.
+- O Generator valida o endereço-base (`http`/`https`, host e porta válidos, sem
+  credenciais, query string ou fragmento), o caminho (início com `/`, sem
+  fragmento, espaços nem `{...}`) e os nomes de cabeçalho. Também repete, de
+  forma defensiva, as verificações do Analyzer, para ASTs montadas sem ele.
 
-## Estrutura de diretórios
+### Limitações
+
+- Sem parâmetros de caminho (`/users/{id}`) nem query string dinâmica; uma
+  query fixa no caminho é aceita.
+- Sem paginação, envio em lote, paralelismo, *retry* ou *rate limiting*; uma
+  requisição por registro, e a resposta do destino não é lida.
+- Os tipos do `map` não são verificados na compilação (`age: int = "abc"` só
+  falha em execução).
+- Inteiros JSON acima de `PHP_INT_MAX` são reenviados como texto e não
+  participam de aritmética (com `+`, são concatenados).
+- `==` entre dois objetos JSON compara identidade, não conteúdo.
+- O registro reenviado sem `map` tem os mesmos campos e valores, mas não é
+  byte a byte idêntico ao recebido.
+
+## Estrutura
 
 ```text
-api-integration-dsl/
-├── .github/workflows/ci.yaml  integração contínua (GitHub Actions)
-├── docker/Dockerfile        imagem de desenvolvimento (PHP 8.3 CLI + Composer)
-├── docs/                    arquitetura, contrato da AST, gramática, tokens
-├── examples/
-│   ├── valid/               programas .dsl válidos
-│   └── invalid/
-│       ├── lexical/         programas com erros léxicos
-│       ├── syntactic/       programas com erros sintáticos
-│       └── semantic/        programas com erros semânticos
-├── src/
-│   ├── Cli/                 CLI (App\Cli\Application)
-│   ├── Lexer/               analisador léxico
-│   ├── Parser/              analisador sintático
-│   ├── Ast/                 nós da AST
-│   ├── Semantic/            analisador semântico
-│   ├── Generator/           gerador de código PHP
-│   └── Exceptions/          exceções do compilador
-├── tests/
-│   ├── Unit/
-│   ├── Integration/
-│   ├── Fixtures/
-│   └── Support/             auxiliares de teste (impressão de expressões)
-├── output/                  código PHP gerado (não versionado)
-├── main.php                 ponto de entrada da CLI
-├── compose.yaml
-├── composer.json
-├── phpunit.xml
-└── README.md
+docs/        gramática (grammar.md) e especificação léxica (tokens.md)
+examples/    programas válidos e inválidos (lexical/, syntactic/, semantic/)
+src/         Lexer/, Parser/, Ast/, Semantic/, Generator/, Cli/, Exceptions/
+tests/       Unit/, Integration/, Fixtures/, Support/
+output/      PHP gerado (não versionado)
+docker/      imagem de desenvolvimento
+main.php     ponto de entrada da CLI
 ```
-
-## Estado de implementação
-
-| Item | Situação |
-|---|---|
-| Estrutura do projeto, Composer, PSR-4 | ✅ Pronto |
-| PHPUnit e testes de infraestrutura | ✅ Pronto |
-| CLI: ajuda, validação de argumentos, códigos de saída | ✅ Pronto |
-| Ambiente Docker de desenvolvimento | ✅ Pronto |
-| Integração contínua (GitHub Actions) | ✅ Configurada |
-| Documentação de arquitetura e convenções | ✅ Pronto |
-| Gramática (GLC) e especificação do Parser | ✅ Pronto ([docs/grammar.md](docs/grammar.md)) |
-| Parser (descendente recursivo LL(1), erros sintáticos) | ✅ Pronto (`src/Parser`) |
-| AST | ✅ Implementada (`src/Ast`); consumida pelo Generator sem alterações |
-| Contrato de tokens (`Token`, `TokenType`) | ✅ Pronto (`src/Lexer`) |
-| Lexer (escrito à mão, erros léxicos) | ✅ Pronto (`src/Lexer`, [docs/tokens.md](docs/tokens.md)) |
-| Analisador semântico (`Analyzer`, erros semânticos) | ✅ Implementado por Pedro Augusto (`src/Semantic`, [docs/semantic-analysis.md](docs/semantic-analysis.md)); integrado ao pipeline |
-| Generator (AST → PHP com cURL, `when`, `map`, cabeçalhos) | ✅ Pronto, com correções pós-code review (`src/Generator`, [docs/generator.md](docs/generator.md)); decisões provisórias aguardam o grupo |
-| Integração do pipeline na CLI (`output/<nome>.php`, códigos 0/1/2) | ✅ Pronta (`src/Cli`) |
-| Exemplos `.dsl` válidos e com erros sintáticos | ✅ Prontos (`examples/valid`, `examples/invalid/syntactic`) |
-| Exemplos `.dsl` com erros léxicos | ✅ Prontos (`examples/invalid/lexical`) |
-| Exemplos `.dsl` com erros semânticos | ✅ Prontos (`examples/invalid/semantic`) |
-
-## Equipe e responsabilidades
-
-| Papel | Responsabilidades | Integrante |
-|---|---|---|
-| Analisador léxico | Lexer, tokens, erros léxicos, `docs/tokens.md` | Bruno Comassetto |
-| Analisador sintático | Parser, GLC, AST, erros sintáticos, `docs/grammar.md` | Paula Camilly da Silva |
-| Gerador de código | Generator, integração das contribuições | Luis Fernando Souza Pinto |
-| Integração e documentação | Testes integrados, CLI, exemplos, relatório | Pedro Augusto |

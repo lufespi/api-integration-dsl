@@ -17,13 +17,11 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Testes do Analisador Semântico: cada regra de docs/semantic-analysis.md tem
- * ao menos um programa válido e um inválido, com mensagem, linha e coluna
- * verificadas.
+ * Cada regra semântica (S1–S13) com mensagem, linha e coluna. As posições esperadas
+ * são calculadas a partir do texto do programa de teste (positionOf).
  *
- * As posições esperadas são calculadas a partir do próprio texto do programa
- * de teste (método positionOf), e não escritas à mão, para que o teste continue
- * correto se o programa de exemplo mudar.
+ * @author pedro.augusto
+ * @since 2026-11-28
  */
 final class AnalyzerTest extends TestCase
 {
@@ -43,29 +41,15 @@ final class AnalyzerTest extends TestCase
         '',
     ];
 
-    // ------------------------------------------------------------------
     // Montagem de programas e de mensagens esperadas
-    // ------------------------------------------------------------------
 
-    /**
-     * Programa formado pelas APIs-base seguidas das linhas informadas.
-     *
-     * @param string ...$lines Linhas adicionais (APIs e/ou integrações).
-     *
-     * @return string
-     */
+    /** Programa formado pelas APIs-base seguidas das linhas informadas. */
     private static function programWithApis(string ...$lines): string
     {
         return implode("\n", [...self::APIS, ...$lines]) . "\n";
     }
 
-    /**
-     * Programa formado somente pelas linhas informadas.
-     *
-     * @param string ...$lines Linhas do programa.
-     *
-     * @return string
-     */
+    /** Programa formado somente pelas linhas informadas. */
     private static function programOf(string ...$lines): string
     {
         return implode("\n", $lines) . "\n";
@@ -73,10 +57,6 @@ final class AnalyzerTest extends TestCase
 
     /**
      * Linha e coluna (a partir de 1) da n-ésima ocorrência de um trecho.
-     *
-     * @param string $source     Programa.
-     * @param string $needle     Trecho procurado.
-     * @param int    $occurrence Ocorrência desejada (a partir de 1).
      *
      * @return array{int, int}
      */
@@ -98,15 +78,7 @@ final class AnalyzerTest extends TestCase
         return [substr_count($before, "\n") + 1, mb_strlen($currentLine, 'UTF-8') + 1];
     }
 
-    /**
-     * Texto "linha L, coluna C" da n-ésima ocorrência de um trecho.
-     *
-     * @param string $source     Programa.
-     * @param string $needle     Trecho procurado.
-     * @param int    $occurrence Ocorrência desejada (a partir de 1).
-     *
-     * @return string
-     */
+    /** Texto "linha L, coluna C" da n-ésima ocorrência de um trecho. */
     private static function placeOf(string $source, string $needle, int $occurrence = 1): string
     {
         [$line, $column] = self::positionOf($source, $needle, $occurrence);
@@ -117,13 +89,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Mensagem completa esperada para um erro que começa na n-ésima
      * ocorrência de um trecho.
-     *
-     * @param string $source     Programa.
-     * @param string $needle     Trecho onde o erro deve ser apontado.
-     * @param string $message    Descrição do problema, sem a posição.
-     * @param int    $occurrence Ocorrência desejada do trecho (a partir de 1).
-     *
-     * @return string
      */
     private static function expectedError(string $source, string $needle, string $message, int $occurrence = 1): string
     {
@@ -132,18 +97,9 @@ final class AnalyzerTest extends TestCase
         return sprintf('Erro semântico na linha %d, coluna %d: %s', $line, $column, $message);
     }
 
-    // ------------------------------------------------------------------
     // Execução do pipeline Lexer -> Parser -> Analyzer
-    // ------------------------------------------------------------------
 
-    /**
-     * Executa Lexer, Parser e Analyzer sobre o programa.
-     *
-     * @param string        $source   Programa na DSL.
-     * @param Analyzer|null $analyzer Analyzer a usar (padrão: funções-padrão).
-     *
-     * @return Program
-     */
+    /** Executa Lexer, Parser e Analyzer sobre o programa. */
     private static function runAnalysis(string $source, ?Analyzer $analyzer = null): Program
     {
         $program = (new Parser((new Lexer($source))->tokenize()))->parse();
@@ -154,11 +110,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Analisa o programa e devolve a SemanticException lançada, falhando o
      * teste se a análise terminar sem erro.
-     *
-     * @param string        $source   Programa na DSL.
-     * @param Analyzer|null $analyzer Analyzer a usar (padrão: funções-padrão).
-     *
-     * @return SemanticException
      */
     private static function exceptionOf(string $source, ?Analyzer $analyzer = null): SemanticException
     {
@@ -174,9 +125,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Mensagens completas de todos os erros semânticos do programa.
      *
-     * @param string        $source   Programa na DSL.
-     * @param Analyzer|null $analyzer Analyzer a usar (padrão: funções-padrão).
-     *
      * @return list<string>
      */
     private static function errorsOf(string $source, ?Analyzer $analyzer = null): array
@@ -187,15 +135,9 @@ final class AnalyzerTest extends TestCase
         );
     }
 
-    // ------------------------------------------------------------------
     // Programas válidos
-    // ------------------------------------------------------------------
 
-    /**
-     * Programa correto passa e o mesmo Program é devolvido (permite encadear).
-     *
-     * @return void
-     */
+    /** Programa correto passa e o mesmo Program é devolvido (permite encadear). */
     public function testValidProgramIsAcceptedAndReturnedUnchanged(): void
     {
         $source = self::programWithApis(
@@ -220,8 +162,6 @@ final class AnalyzerTest extends TestCase
     /**
      * A ordem das declarações não importa: uma integração pode aparecer antes
      * das APIs que referencia.
-     *
-     * @return void
      */
     public function testDeclarationOrderDoesNotMatter(): void
     {
@@ -240,8 +180,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Nomes iguais em escopos diferentes são permitidos: o mesmo endpoint em
      * APIs distintas e o mesmo cabeçalho em APIs distintas.
-     *
-     * @return void
      */
     public function testSameNamesInDifferentScopesAreAllowed(): void
     {
@@ -270,8 +208,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Sem alias, a integração é válida desde que não referencie campos
      * (somente literais, funções e operadores).
-     *
-     * @return void
      */
     public function testNoAliasIsValidWhenNoFieldIsReferenced(): void
     {
@@ -290,15 +226,11 @@ final class AnalyzerTest extends TestCase
         self::assertNotEmpty(self::runAnalysis($source)->integrations);
     }
 
-    // ------------------------------------------------------------------
     // Nomes repetidos
-    // ------------------------------------------------------------------
 
     /**
      * API declarada duas vezes: o erro aponta a segunda declaração e cita a
      * primeira. As referências continuam resolvendo para a primeira.
-     *
-     * @return void
      */
     public function testDuplicateApiIsReported(): void
     {
@@ -325,11 +257,7 @@ final class AnalyzerTest extends TestCase
         );
     }
 
-    /**
-     * Endpoint repetido dentro da mesma API.
-     *
-     * @return void
-     */
+    /** Endpoint repetido dentro da mesma API. */
     public function testDuplicateEndpointInSameApiIsReported(): void
     {
         $source = self::programOf(
@@ -364,11 +292,7 @@ final class AnalyzerTest extends TestCase
         );
     }
 
-    /**
-     * Cabeçalho repetido na mesma API, sem diferenciar maiúsculas de minúsculas.
-     *
-     * @return void
-     */
+    /** Cabeçalho repetido na mesma API, sem diferenciar maiúsculas de minúsculas. */
     public function testDuplicateHeaderIsCaseInsensitive(): void
     {
         $source = self::programOf(
@@ -404,11 +328,7 @@ final class AnalyzerTest extends TestCase
         );
     }
 
-    /**
-     * Integração declarada duas vezes.
-     *
-     * @return void
-     */
+    /** Integração declarada duas vezes. */
     public function testDuplicateIntegrationIsReported(): void
     {
         $source = self::programWithApis(
@@ -434,11 +354,7 @@ final class AnalyzerTest extends TestCase
         );
     }
 
-    /**
-     * Campo repetido no bloco "map".
-     *
-     * @return void
-     */
+    /** Campo repetido no bloco "map". */
     public function testDuplicateMapFieldIsReported(): void
     {
         $source = self::programWithApis(
@@ -467,15 +383,11 @@ final class AnalyzerTest extends TestCase
         );
     }
 
-    // ------------------------------------------------------------------
     // Referências from / to
-    // ------------------------------------------------------------------
 
     /**
      * API inexistente em "from" e em "to": os dois erros são relatados e a
      * mensagem lista as APIs declaradas.
-     *
-     * @return void
      */
     public function testUnknownApiInFromAndToIsReported(): void
     {
@@ -506,8 +418,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Endpoint que existe em outra API, mas não na citada: a verificação é
      * por API, e a mensagem lista os endpoints daquela API.
-     *
-     * @return void
      */
     public function testUnknownEndpointIsReportedPerApi(): void
     {
@@ -537,16 +447,12 @@ final class AnalyzerTest extends TestCase
         );
     }
 
-    // ------------------------------------------------------------------
     // Alias e referências a campos
-    // ------------------------------------------------------------------
 
     /**
      * Sem alias, usar campos é erro, mas relatado uma única vez por
      * integração (todas as referências têm a mesma causa), na primeira
      * referência encontrada.
-     *
-     * @return void
      */
     public function testFieldReferenceWithoutAliasIsReportedOnlyOnce(): void
     {
@@ -575,8 +481,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Com alias, todo caminho de campo deve começar por ele, em "when" e em
      * "map". O alias sozinho e palavras reservadas como campo são permitidos.
-     *
-     * @return void
      */
     public function testReferenceMustStartWithAlias(): void
     {
@@ -607,8 +511,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Cabeçalhos não têm registro de origem: referenciar campo é erro e a
      * mensagem sugere env().
-     *
-     * @return void
      */
     public function testHeaderCannotReferenceFields(): void
     {
@@ -645,15 +547,11 @@ final class AnalyzerTest extends TestCase
         );
     }
 
-    // ------------------------------------------------------------------
     // Funções
-    // ------------------------------------------------------------------
 
     /**
      * Função inexistente: a mensagem lista as funções disponíveis, em ordem
      * alfabética.
-     *
-     * @return void
      */
     public function testUnknownFunctionIsReported(): void
     {
@@ -680,11 +578,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Por padrão, env() é a única função embutida: upper(), lower() e now()
      * não são suportadas pelo Generator e, portanto, são desconhecidas.
-     *
-     * @param string $call Chamada de função usada no "map".
-     * @param string $name Nome da função.
-     *
-     * @return void
      */
     #[DataProvider('unsupportedFunctions')]
     public function testFunctionsWithoutGeneratorSupportAreUnknownByDefault(string $call, string $name): void
@@ -720,8 +613,6 @@ final class AnalyzerTest extends TestCase
     /**
      * As funções-padrão do Analyzer são exatamente as que o Generator sabe
      * traduzir: uma função aceita aqui nunca falha só na geração.
-     *
-     * @return void
      */
     public function testDefaultFunctionsMatchGeneratorFunctions(): void
     {
@@ -732,8 +623,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Número de argumentos de env() diferente de 1 (com plural correto);
      * chamadas corretas, em "map" e em cabeçalho, não geram erro.
-     *
-     * @return void
      */
     public function testWrongArityIsReported(): void
     {
@@ -761,8 +650,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Com uma tabela personalizada, a mensagem de aridade usa o singular
      * quando a função recebe exatamente 1 argumento.
-     *
-     * @return void
      */
     public function testWrongArityMessageUsesSingular(): void
     {
@@ -785,10 +672,6 @@ final class AnalyzerTest extends TestCase
     /**
      * O argumento de env() deve ser um texto literal: campos, números e
      * expressões são rejeitados, apontando a chamada.
-     *
-     * @param string $argument Argumento passado a env().
-     *
-     * @return void
      */
     #[DataProvider('nonLiteralEnvArguments')]
     public function testEnvArgumentMustBeAStringLiteral(string $argument): void
@@ -831,11 +714,6 @@ final class AnalyzerTest extends TestCase
     /**
      * O texto de env() deve ser um nome de variável de ambiente válido; o
      * erro aponta o literal.
-     *
-     * @param string $name    Texto literal passado a env(), já com aspas.
-     * @param string $printed Nome como aparece na mensagem.
-     *
-     * @return void
      */
     #[DataProvider('invalidEnvNames')]
     public function testEnvNameMustBeValid(string $name, string $printed): void
@@ -881,11 +759,7 @@ final class AnalyzerTest extends TestCase
         yield 'quebra de linha escapada' => ['"A\\nB"', 'A\\nB'];
     }
 
-    /**
-     * Nomes válidos de variável de ambiente são aceitos.
-     *
-     * @return void
-     */
+    /** Nomes válidos de variável de ambiente são aceitos. */
     public function testValidEnvNamesAreAccepted(): void
     {
         $source = self::programWithApis(
@@ -903,11 +777,7 @@ final class AnalyzerTest extends TestCase
         self::assertNotEmpty(self::runAnalysis($source)->integrations);
     }
 
-    /**
-     * Argumentos de funções e operandos de operadores também são verificados.
-     *
-     * @return void
-     */
+    /** Argumentos de funções e operandos de operadores também são verificados. */
     public function testNestedExpressionsAreAnalyzed(): void
     {
         $source = self::programWithApis(
@@ -947,8 +817,6 @@ final class AnalyzerTest extends TestCase
     /**
      * A tabela de funções é configurável: o Analyzer aceita exatamente as
      * funções informadas (nome => aridade).
-     *
-     * @return void
      */
     public function testCustomFunctionTable(): void
     {
@@ -984,8 +852,6 @@ final class AnalyzerTest extends TestCase
      * Tabelas de funções malformadas são rejeitadas na construção.
      *
      * @param array<mixed> $functions Tabela inválida.
-     *
-     * @return void
      */
     #[DataProvider('invalidFunctionTables')]
     public function testInvalidFunctionTableIsRejected(array $functions): void
@@ -1009,16 +875,12 @@ final class AnalyzerTest extends TestCase
         yield 'env com aridade diferente de 1' => [['env' => 2]];
     }
 
-    // ------------------------------------------------------------------
     // Vários erros, exceção e reutilização
-    // ------------------------------------------------------------------
 
     /**
      * Erros de partes diferentes do programa são coletados juntos e
      * ordenados por posição no fonte, não pela ordem de verificação (o
      * Analyzer verifica as APIs antes das integrações).
-     *
-     * @return void
      */
     public function testErrorsAreCollectedAndSortedByPosition(): void
     {
@@ -1063,8 +925,6 @@ final class AnalyzerTest extends TestCase
     /**
      * Com um único erro, a mensagem da exceção é só a do erro (sem cabeçalho
      * de contagem), igual ao comportamento da SyntaxException.
-     *
-     * @return void
      */
     public function testSingleErrorMessageHasNoCountHeader(): void
     {
@@ -1088,8 +948,6 @@ final class AnalyzerTest extends TestCase
     /**
      * O mesmo Analyzer pode ser reutilizado: os erros de uma análise não
      * vazam para a seguinte.
-     *
-     * @return void
      */
     public function testAnalyzerCanBeReused(): void
     {
@@ -1102,11 +960,7 @@ final class AnalyzerTest extends TestCase
         self::assertCount(1, self::exceptionOf($invalid, $analyzer)->errors());
     }
 
-    /**
-     * SemanticException não pode ser criada sem nenhum erro.
-     *
-     * @return void
-     */
+    /** SemanticException não pode ser criada sem nenhum erro. */
     public function testSemanticExceptionRequiresAtLeastOneError(): void
     {
         $this->expectException(InvalidArgumentException::class);

@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace App\Ast;
 
 /**
- * Tipos de dados declaráveis nos mapeamentos de campos (bloco "map").
+ * Tipo declarado em um campo do bloco `map`; orienta a conversão feita pelo Generator.
  *
- * Indicam ao Generator para qual tipo o valor calculado deve ser convertido
- * antes de ser enviado ao endpoint de destino.
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 enum DataType: string
 {

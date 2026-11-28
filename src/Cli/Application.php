@@ -12,25 +12,13 @@ use App\Semantic\Analyzer;
 use Throwable;
 
 /**
- * Ponto de entrada da linha de comando.
+ * CLI: valida os argumentos, executa Lexer → Parser → Analyzer → PhpGenerator e
+ * grava output/<nome>.php. Em caso de falha nada é gravado, e a saída de uma
+ * compilação anterior é removida. Streams e diretório de saída são injetáveis
+ * para os testes.
  *
- * Responsabilidades:
- *  - interpretar os argumentos recebidos;
- *  - exibir a ajuda (--help / -h);
- *  - validar o arquivo de entrada (.dsl existente e legível);
- *  - coordenar o pipeline de compilação:
- *      texto-fonte -> Lexer -> tokens -> Parser -> AST -> Analyzer -> PhpGenerator -> arquivo .php
- *  - gravar o PHP gerado em output/<nome-do-arquivo>.php;
- *  - devolver códigos de saída consistentes.
- *
- * A CLI não executa o PHP gerado e não faz requisições HTTP. Em caso de falha,
- * nenhum arquivo é gravado e um arquivo de mesmo nome deixado em output/ por
- * uma compilação anterior é removido, para não ser confundido com o resultado
- * da compilação atual.
- *
- * As saídas são recebidas como streams e o diretório de saída é configurável
- * para que a classe possa ser testada sem processos externos (ver
- * tests/Unit/Cli/ApplicationTest.php).
+ * @author lufespi
+ * @since 2026-11-17
  */
 final class Application
 {
@@ -49,7 +37,6 @@ final class Application
     /**
      * @param resource    $stdout
      * @param resource    $stderr
-     * @param string|null $outputDirectory Diretório onde o PHP gerado é gravado (padrão: output/ na raiz do projeto).
      */
     public function __construct(
         private $stdout,
@@ -59,9 +46,7 @@ final class Application
         $this->outputDirectory = rtrim($outputDirectory ?? dirname(__DIR__, 2) . DIRECTORY_SEPARATOR . 'output', '/\\');
     }
 
-    /**
-     * @param list<string> $argv argumentos no formato de $argv (índice 0 = nome do script)
-     */
+    /** @param list<string> $argv argumentos no formato de $argv (índice 0 = nome do script) */
     public function run(array $argv): int
     {
         $script = $argv[0] ?? 'main.php';
@@ -95,13 +80,6 @@ final class Application
         return $this->compile($path);
     }
 
-    /**
-     * Executa o pipeline e grava o resultado em output/<nome>.php.
-     *
-     * @param string $path Arquivo .dsl já validado.
-     *
-     * @return int Código de saída.
-     */
     private function compile(string $path): int
     {
         $target = $this->outputDirectory . DIRECTORY_SEPARATOR . pathinfo($path, PATHINFO_FILENAME) . '.php';
@@ -119,8 +97,7 @@ final class Application
         } catch (CompilerException $e) {
             return $this->failure($target, $e->getMessage());
         } catch (Throwable $e) {
-            // Defeito do compilador (tratado como erro interno por main.php): o
-            // arquivo antigo também não pode passar por resultado desta execução.
+            // Erro interno: a saída de uma compilação anterior também não pode ficar.
             $this->discardStaleOutput($target);
 
             throw $e;
@@ -140,14 +117,6 @@ final class Application
         return self::EXIT_SUCCESS;
     }
 
-    /**
-     * Relata uma falha de compilação ou de leitura/escrita em stderr.
-     *
-     * @param string $target  Arquivo de saída que esta compilação produziria.
-     * @param string $message Mensagem já formatada para o usuário.
-     *
-     * @return int EXIT_COMPILATION_ERROR.
-     */
     private function failure(string $target, string $message): int
     {
         $this->write($this->stderr, rtrim($message) . "\n");
@@ -157,14 +126,6 @@ final class Application
         return self::EXIT_COMPILATION_ERROR;
     }
 
-    /**
-     * Remove o arquivo de saída deixado por uma compilação anterior, para que
-     * ele não seja confundido com o resultado de uma compilação que falhou.
-     *
-     * @param string $target Arquivo de saída.
-     *
-     * @return void
-     */
     private function discardStaleOutput(string $target): void
     {
         if (!is_file($target)) {
@@ -187,14 +148,8 @@ final class Application
     }
 
     /**
-     * Grava o PHP de forma atômica: escreve em um arquivo temporário no mesmo
-     * diretório e o renomeia para o destino. Assim, uma falha no meio da
-     * escrita nunca deixa um arquivo .php parcial em output/.
-     *
-     * @param string $target Caminho final do arquivo .php.
-     * @param string $php    Código gerado.
-     *
-     * @return string|null Mensagem de erro, ou null em caso de sucesso.
+     * Gravação atômica: escreve em um temporário no mesmo diretório e o renomeia,
+     * de modo que uma falha no meio da escrita nunca deixa um .php parcial.
      */
     private function writeOutput(string $target, string $php): ?string
     {
@@ -246,13 +201,7 @@ final class Application
         return null;
     }
 
-    /**
-     * Caminho relativo ao diretório atual, quando estiver dentro dele.
-     *
-     * @param string $path Caminho absoluto ou relativo.
-     *
-     * @return string
-     */
+    /** Caminho relativo ao diretório atual, quando estiver dentro dele. */
     private function displayPath(string $path): string
     {
         $cwd = getcwd();

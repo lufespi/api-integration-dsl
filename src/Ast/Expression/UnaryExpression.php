@@ -5,18 +5,11 @@ declare(strict_types=1);
 namespace App\Ast\Expression;
 
 /**
- * Operação unária prefixada (ex.: !user.blocked, -desconto).
- *
- * Produção correspondente: expr_unaria (docs/grammar.md).
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final readonly class UnaryExpression implements Expression
 {
-    /**
-     * @param UnaryOperator $operator Operador aplicado.
-     * @param Expression    $operand  Operando.
-     * @param int           $line     Linha do operador.
-     * @param int           $column   Coluna do operador.
-     */
     public function __construct(
         public UnaryOperator $operator,
         public Expression $operand,
@@ -25,9 +18,6 @@ final readonly class UnaryExpression implements Expression
     ) {
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     public function toArray(): array
     {
         return [

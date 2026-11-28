@@ -13,13 +13,12 @@ use PHPUnit\Framework\TestCase;
 use Tests\Unit\Generator\Support\GeneratedScript;
 
 /**
- * Compatibilidade do Gerador com os programas de examples/valid/.
+ * Os exemplos de examples/valid/ geram PHP válido. As funções de condição,
+ * mapeamento e cabeçalhos são executadas com registros simulados, nunca contra
+ * as URLs de exemplo.
  *
- * Único teste do Gerador que usa Lexer e Parser, apenas para obter a AST
- * real dos exemplos; o PhpGenerator em si não depende deles. Os scripts
- * gerados NÃO são executados contra as URLs de exemplo: só são validados
- * com "php -l" e têm suas funções puras (condição, mapeamento, cabeçalhos)
- * executadas com registros simulados.
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class ExamplesGenerationTest extends TestCase
 {
@@ -35,9 +34,7 @@ final class ExamplesGenerationTest extends TestCase
         return new GeneratedScript((new PhpGenerator())->generate(self::parse($file)));
     }
 
-    /**
-     * Todo exemplo válido gera PHP sintaticamente válido.
-     */
+    /** Todo exemplo válido gera PHP sintaticamente válido. */
     #[DataProvider('validExamples')]
     public function testEveryValidExampleGeneratesValidPhp(string $file): void
     {

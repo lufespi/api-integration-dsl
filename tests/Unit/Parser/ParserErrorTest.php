@@ -19,6 +19,9 @@ use PHPUnit\Framework\TestCase;
  * Testes do Analisador Sintático com programas inválidos: mensagem, linha e
  * coluna de cada erro sintático, recuperação em modo pânico e validação do
  * contrato de tokens recebido do Lexer.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final class ParserErrorTest extends TestCase
 {
@@ -28,10 +31,6 @@ final class ParserErrorTest extends TestCase
     /**
      * Analisa o programa e devolve a SyntaxException lançada, falhando o
      * teste se a análise terminar sem erro.
-     *
-     * @param string $source Programa na DSL.
-     *
-     * @return SyntaxException
      */
     private function syntaxErrorOf(string $source): SyntaxException
     {
@@ -48,11 +47,6 @@ final class ParserErrorTest extends TestCase
      * Verifica a mensagem completa e a posição (linha e coluna) de cada tipo
      * de erro sintático, incluindo os pontos em que o Parser escolhe a
      * mensagem conforme as cláusulas opcionais já vistas.
-     *
-     * @param string $source   Programa com exatamente um erro sintático.
-     * @param string $expected Mensagem completa esperada.
-     *
-     * @return void
      */
     #[DataProvider('syntaxErrors')]
     public function testSyntaxErrorMessageAndPosition(string $source, string $expected): void
@@ -182,8 +176,6 @@ final class ParserErrorTest extends TestCase
      * Verifica a recuperação em modo pânico: um erro em uma declaração não
      * impede a análise das seguintes, e todos os erros são relatados juntos,
      * em ordem, com a mensagem de múltiplos erros.
-     *
-     * @return void
      */
     public function testPanicModeRecoveryReportsIndependentErrors(): void
     {
@@ -220,8 +212,6 @@ final class ParserErrorTest extends TestCase
      * Verifica que, quando um bloco não é fechado e a próxima declaração
      * começa, o Parser sincroniza nela em vez de descartá-la, relatando um
      * único erro.
-     *
-     * @return void
      */
     public function testUnclosedBlockSynchronizesOnNextDeclaration(): void
     {
@@ -236,10 +226,6 @@ final class ParserErrorTest extends TestCase
     /**
      * "api" e "integration" depois de "." são nomes de campo, não início de
      * declaração: a recuperação não sincroniza neles e não gera erros em cascata.
-     *
-     * @param string $source Programa com um único erro antes de "x.api"/"x.integration".
-     *
-     * @return void
      */
     #[DataProvider('reservedWordsAsFieldNamesAfterError')]
     public function testRecoveryDoesNotSynchronizeOnReservedWordUsedAsFieldName(string $source): void
@@ -249,9 +235,7 @@ final class ParserErrorTest extends TestCase
         self::assertCount(1, $exception->errors(), $exception->getMessage());
     }
 
-    /**
-     * @return iterable<string, array{string}>
-     */
+    /** @return iterable<string, array{string}> */
     public static function reservedWordsAsFieldNamesAfterError(): iterable
     {
         yield 'campo api no when' => ["integration s {\n  from A.l as x\n  to A.c;\n  when x.api == 1;\n}"];
@@ -261,8 +245,6 @@ final class ParserErrorTest extends TestCase
     /**
      * Verifica que a SyntaxException é uma CompilerException e expõe a linha
      * e a coluna do primeiro erro no arquivo-fonte.
-     *
-     * @return void
      */
     public function testExceptionExposesPositionOfFirstError(): void
     {
@@ -273,11 +255,7 @@ final class ParserErrorTest extends TestCase
         self::assertSame(11, $exception->getSourceColumn());
     }
 
-    /**
-     * Verifica que SyntaxException não pode ser criada sem nenhum erro.
-     *
-     * @return void
-     */
+    /** Verifica que SyntaxException não pode ser criada sem nenhum erro. */
     public function testSyntaxExceptionRequiresAtLeastOneError(): void
     {
         $this->expectException(InvalidArgumentException::class);
@@ -286,13 +264,9 @@ final class ParserErrorTest extends TestCase
     }
 
     /**
-     * Verifica que o Parser rejeita sequências de tokens que violam o
-     * contrato com o Lexer (vazia, sem EOF final, EOF repetido ou elemento
-     * que não é Token).
+     * Sequências de tokens que violam o contrato com o Lexer.
      *
-     * @param list<mixed> $tokens Sequência inválida.
-     *
-     * @return void
+     * @param list<mixed> $tokens
      */
     #[DataProvider('invalidTokenSequences')]
     public function testInvalidTokenSequenceIsRejected(array $tokens): void
@@ -321,8 +295,6 @@ final class ParserErrorTest extends TestCase
     /**
      * Verifica que um literal sem valor semântico (defeito do Lexer, não do
      * programa) gera LogicException, e não um erro sintático.
-     *
-     * @return void
      */
     public function testLiteralWithoutSemanticValueIsAContractViolation(): void
     {

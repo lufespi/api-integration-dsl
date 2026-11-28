@@ -16,12 +16,10 @@ use Tests\Unit\Generator\Support\GeneratedScript;
 use Tests\Unit\Generator\Support\LocalHttpServer;
 
 /**
- * Executa scripts gerados de ponta a ponta contra um servidor HTTP local
- * (LocalHttpServer, "php -S" em 127.0.0.1) que faz o papel das APIs de
- * origem e destino. Verifica as requisições realmente enviadas pelo cURL,
- * as mensagens e o código de saída.
+ * Scripts gerados executados contra um servidor HTTP local (127.0.0.1) no papel das APIs.
  *
- * Nenhum serviço externo é acessado: todas as URLs apontam para 127.0.0.1.
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class GeneratedCodeTest extends TestCase
 {
@@ -43,8 +41,6 @@ final class GeneratedCodeTest extends TestCase
     }
 
     /**
-     * Gera e executa o programa, devolvendo o resultado do processo.
-     *
      * @param array<string,string> $env
      *
      * @return array{exitCode: int, stdout: string, stderr: string}
@@ -97,9 +93,7 @@ final class GeneratedCodeTest extends TestCase
         self::assertSame('{"id":2,"nome":"Bia","url":"https://x.y/z"}', $requests[2]['body']);
     }
 
-    /**
-     * Resposta em objeto: tratada como um único registro.
-     */
+    /** Resposta em objeto: tratada como um único registro. */
     public function testObjectResponseIsASingleRecord(): void
     {
         self::$server->respond('GET', '/src/items', 200, '{"id":7}');
@@ -112,9 +106,7 @@ final class GeneratedCodeTest extends TestCase
         self::assertSame('{"id":7}', $posts[0]['body']);
     }
 
-    /**
-     * Lista vazia: nada a enviar, execução bem-sucedida.
-     */
+    /** Lista vazia: nada a enviar, execução bem-sucedida. */
     public function testEmptyListSendsNothing(): void
     {
         self::$server->respond('GET', '/src/items', 200, '[]');
@@ -297,9 +289,7 @@ final class GeneratedCodeTest extends TestCase
         yield 'lista de textos' => [200, '[{"a":1},"x"]', 'formato de resposta incompatível: o item 2 da lista é string, esperado objeto JSON'];
     }
 
-    /**
-     * Status de erro no destino: o registro falha, os demais continuam.
-     */
+    /** Status de erro no destino: o registro falha, os demais continuam. */
     public function testTargetHttpErrorFailsTheRecordAndContinues(): void
     {
         self::$server->respond('GET', '/src/items', 200, '[{"id":1},{"id":2}]');
@@ -313,9 +303,7 @@ final class GeneratedCodeTest extends TestCase
         self::assertCount(2, $this->requestsTo('/dst/records'));
     }
 
-    /**
-     * Falha de conexão (porta sem servidor): erro do cURL reportado.
-     */
+    /** Falha de conexão (porta sem servidor): erro do cURL reportado. */
     public function testConnectionFailureIsReported(): void
     {
         $closedPort = LocalHttpServer::freePort();
@@ -375,7 +363,7 @@ final class GeneratedCodeTest extends TestCase
     }
 
     /**
-     * FIX-02: inteiros dentro do intervalo do PHP continuam números; os
+     * Inteiros dentro do intervalo do PHP continuam números; os
      * maiores que PHP_INT_MAX (em objeto ou lista, positivos ou negativos)
      * preservam todos os dígitos, encaminhados como texto JSON.
      */
@@ -395,7 +383,7 @@ final class GeneratedCodeTest extends TestCase
     }
 
     /**
-     * FIX-02: resposta em objeto com identificador grande, e "map": texto
+     * Resposta em objeto com identificador grande, e "map": texto
      * preserva os dígitos; int fora do intervalo é rejeitado no registro.
      */
     public function testLargeJsonIntegersInMapping(): void
@@ -418,7 +406,7 @@ final class GeneratedCodeTest extends TestCase
     }
 
     /**
-     * FIX-03: em sucesso, o parâmetro sensível é enviado à API, mas não
+     * Em sucesso, o parâmetro sensível é enviado à API, mas não
      * aparece em stdout nem stderr; o log continua mostrando método e URL.
      */
     public function testQueryStringSecretsAreSentButNotLogged(): void
@@ -442,7 +430,7 @@ final class GeneratedCodeTest extends TestCase
     }
 
     /**
-     * FIX-03: em falhas (status HTTP da origem e do destino, JSON inválido,
+     * Em falhas (status HTTP da origem e do destino, JSON inválido,
      * conexão recusada), a mensagem mantém método, host e caminho, mas oculta
      * a query string.
      */
@@ -487,7 +475,7 @@ final class GeneratedCodeTest extends TestCase
     }
 
     /**
-     * FIX-04: valores não finitos falham apenas o registro em que aparecem;
+     * Valores não finitos falham apenas o registro em que aparecem;
      * os demais continuam sendo processados e enviados.
      */
     public function testNonFiniteValuesFailOnlyTheirRecord(): void
@@ -510,7 +498,7 @@ final class GeneratedCodeTest extends TestCase
     }
 
     /**
-     * FIX-04: conversão para float de um texto numérico que vira INF falha
+     * Conversão para float de um texto numérico que vira INF falha
      * o registro, identificando o campo.
      */
     public function testNonFiniteConversionIdentifiesTheField(): void

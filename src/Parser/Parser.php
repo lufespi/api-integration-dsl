@@ -29,34 +29,23 @@ use InvalidArgumentException;
 use LogicException;
 
 /**
- * Analisador sintático da DSL.
+ * Analisador sintático descendente recursivo preditivo LL(1), escrito à mão.
  *
- * Técnica: análise descendente recursiva preditiva LL(1), escrita à mão
- * (docs/grammar.md, seção 7). Cada não terminal da GLC corresponde a um
- * método privado desta classe, indicado no docblock de cada método; a escolha
- * da produção é feita olhando apenas o token atual (um símbolo de lookahead).
+ * Cada não terminal da GLC (docs/grammar.md) é um método, com a produção no
+ * docblock; a escolha da produção olha apenas o token atual. Em caso de erro,
+ * o Parser se recupera em modo pânico (synchronize()) e, ao final, lança todos
+ * os erros juntos em uma SyntaxException.
  *
- * Entrada: lista de tokens produzida pelo Lexer, terminada por um token EOF.
- * Saída:   a raiz da AST (App\Ast\Program).
- *
- * Erros: ao encontrar um token inesperado, o Parser registra um SyntaxError
- * e se recupera em modo pânico, descartando tokens até o início da próxima
- * declaração de nível superior ("api" ou "integration"). Assim, vários erros
- * independentes podem ser relatados em uma única execução. Ao final, se houve
- * erros, todos são lançados juntos em uma SyntaxException.
- *
- * Uso:
- *   $program = (new Parser($tokens))->parse();
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final class Parser
 {
-    /** Contexto usado nas mensagens de erro das expressões. */
     private const EXPRESSION_START = "expressão (literal, identificador, '(', '!' ou '-')";
 
     /** @var list<Token> */
     private readonly array $tokens;
 
-    /** Índice do token atual (lookahead) em $tokens. */
     private int $position = 0;
 
     /** @var list<SyntaxError> */
@@ -90,13 +79,9 @@ final class Parser
     }
 
     /**
-     * Analisa a sequência de tokens e constrói a AST.
-     *
      * programa = declaracao , { declaracao } , EOF ;
      *
-     * @return Program Raiz da AST, com APIs e integrações na ordem do fonte.
-     *
-     * @throws SyntaxException com todos os erros encontrados, se houver algum.
+     * @throws SyntaxException com todos os erros encontrados
      */
     public function parse(): Program
     {
@@ -132,15 +117,9 @@ final class Parser
         return new Program($apis, $integrations);
     }
 
-    // ---------------------------------------------------------------------
     // Declarações de nível superior
-    // ---------------------------------------------------------------------
 
-    /**
-     * declaracao = decl_api | decl_integracao ;
-     *
-     * @return Api|Integration
-     */
+    /** declaracao = decl_api | decl_integracao ; */
     private function declaration(): Api|Integration
     {
         return match ($this->current()->type) {
@@ -153,8 +132,6 @@ final class Parser
     /**
      * decl_api = "api" , IDENT , "{" , decl_base , { decl_header } ,
      *            decl_endpoint , { decl_endpoint } , "}" ;
-     *
-     * @return Api
      */
     private function apiDeclaration(): Api
     {
@@ -189,12 +166,7 @@ final class Parser
     /**
      * decl_base = "base" , TEXTO , ";" ;
      *
-     * O endereço-base é normalizado sem barra final, como exige o contrato da
-     * AST (docs/ast-contract.md).
-     *
-     * @param string $apiName Nome da API, para as mensagens de erro.
-     *
-     * @return string Endereço-base sem barra final.
+     * O endereço-base é devolvido sem barra final.
      */
     private function baseDeclaration(string $apiName): string
     {
@@ -208,11 +180,7 @@ final class Parser
         return rtrim($url, '/');
     }
 
-    /**
-     * decl_header = "header" , TEXTO , "=" , expressao , ";" ;
-     *
-     * @return Header
-     */
+    /** decl_header = "header" , TEXTO , "=" , expressao , ";" ; */
     private function headerDeclaration(): Header
     {
         $keyword = $this->expect(TokenType::Header, "'header'");
@@ -227,10 +195,7 @@ final class Parser
     /**
      * decl_endpoint = "endpoint" , IDENT , metodo_http , TEXTO , ";" ;
      *
-     * Restrição adicional sobre o literal: o caminho deve começar com "/"
-     * (contrato da AST).
-     *
-     * @return Endpoint
+     * Restrição fora da GLC: o caminho deve começar com "/".
      */
     private function endpointDeclaration(): Endpoint
     {
@@ -253,13 +218,7 @@ final class Parser
         return new Endpoint($name, $method, $path, $keyword->line, $keyword->column);
     }
 
-    /**
-     * metodo_http = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" ;
-     *
-     * @param string $endpointName Nome do endpoint, para as mensagens de erro.
-     *
-     * @return HttpMethod
-     */
+    /** metodo_http = "GET" | "POST" | "PUT" | "PATCH" | "DELETE" ; */
     private function httpMethod(string $endpointName): HttpMethod
     {
         $method = match ($this->current()->type) {
@@ -285,8 +244,6 @@ final class Parser
      * clausula_from = "from" , ref_endpoint , [ "as" , IDENT ] , ";" ;
      * clausula_to   = "to" , ref_endpoint , ";" ;
      * clausula_when = "when" , expressao , ";" ;
-     *
-     * @return Integration
      */
     private function integrationDeclaration(): Integration
     {
@@ -341,13 +298,7 @@ final class Parser
         return new Integration($name, $source, $alias, $target, $condition, $mappings, $keyword->line, $keyword->column);
     }
 
-    /**
-     * ref_endpoint = IDENT , "." , IDENT ;
-     *
-     * @param string $clause Cláusula onde a referência aparece, para as mensagens de erro.
-     *
-     * @return EndpointRef
-     */
+    /** ref_endpoint = IDENT , "." , IDENT ; */
     private function endpointReference(string $clause): EndpointRef
     {
         $api = $this->expect(TokenType::Identifier, sprintf("nome da API na cláusula %s (formato Api.endpoint)", $clause));
@@ -360,9 +311,9 @@ final class Parser
     /**
      * bloco_map = "map" , "{" , mapeamento , { mapeamento } , "}" ;
      *
-     * Pré-condição: a palavra reservada "map" já foi consumida.
+     * Pré-condição: "map" já foi consumido.
      *
-     * @return list<FieldMapping> Ao menos um mapeamento.
+     * @return list<FieldMapping> ao menos um mapeamento
      */
     private function mapBlock(): array
     {
@@ -382,11 +333,7 @@ final class Parser
         return $mappings;
     }
 
-    /**
-     * mapeamento = IDENT , ":" , tipo , "=" , expressao , ";" ;
-     *
-     * @return FieldMapping
-     */
+    /** mapeamento = IDENT , ":" , tipo , "=" , expressao , ";" ; */
     private function fieldMapping(): FieldMapping
     {
         $field = $this->expect(TokenType::Identifier, 'nome de campo');
@@ -399,13 +346,7 @@ final class Parser
         return new FieldMapping($field->lexeme, $dataType, $value, $field->line, $field->column);
     }
 
-    /**
-     * tipo = "string" | "int" | "float" | "bool" ;
-     *
-     * @param string $fieldName Nome do campo, para as mensagens de erro.
-     *
-     * @return DataType
-     */
+    /** tipo = "string" | "int" | "float" | "bool" ; */
     private function dataType(string $fieldName): DataType
     {
         $type = match ($this->current()->type) {
@@ -423,25 +364,15 @@ final class Parser
         return $type;
     }
 
-    // ---------------------------------------------------------------------
     // Expressões (um método por nível de precedência, do menor para o maior)
-    // ---------------------------------------------------------------------
 
-    /**
-     * expressao = expr_ou ;
-     *
-     * @return Expression
-     */
+    /** expressao = expr_ou ; */
     private function expression(): Expression
     {
         return $this->orExpression();
     }
 
-    /**
-     * expr_ou = expr_e , { "||" , expr_e } ;   (associativo à esquerda)
-     *
-     * @return Expression
-     */
+    /** expr_ou = expr_e , { "||" , expr_e } ;   (associativo à esquerda) */
     private function orExpression(): Expression
     {
         return $this->leftAssociative(
@@ -450,11 +381,7 @@ final class Parser
         );
     }
 
-    /**
-     * expr_e = expr_igualdade , { "&&" , expr_igualdade } ;   (associativo à esquerda)
-     *
-     * @return Expression
-     */
+    /** expr_e = expr_igualdade , { "&&" , expr_igualdade } ;   (associativo à esquerda) */
     private function andExpression(): Expression
     {
         return $this->leftAssociative(
@@ -467,8 +394,6 @@ final class Parser
      * expr_igualdade = expr_relacional , [ ( "==" | "!=" ) , expr_relacional ] ;
      *
      * Não associativo: "a == b == c" é erro sintático (use parênteses).
-     *
-     * @return Expression
      */
     private function equalityExpression(): Expression
     {
@@ -486,8 +411,6 @@ final class Parser
      * expr_relacional = expr_aditiva , [ ( "<" | "<=" | ">" | ">=" ) , expr_aditiva ] ;
      *
      * Não associativo: "a < b < c" é erro sintático (use parênteses).
-     *
-     * @return Expression
      */
     private function relationalExpression(): Expression
     {
@@ -506,8 +429,6 @@ final class Parser
     /**
      * expr_aditiva = expr_multiplicativa , { ( "+" | "-" ) , expr_multiplicativa } ;
      * (associativo à esquerda)
-     *
-     * @return Expression
      */
     private function additiveExpression(): Expression
     {
@@ -523,8 +444,6 @@ final class Parser
     /**
      * expr_multiplicativa = expr_unaria , { ( "*" | "/" | "%" ) , expr_unaria } ;
      * (associativo à esquerda)
-     *
-     * @return Expression
      */
     private function multiplicativeExpression(): Expression
     {
@@ -538,11 +457,7 @@ final class Parser
         );
     }
 
-    /**
-     * expr_unaria = ( "!" | "-" ) , expr_unaria | primario ;   (associativo à direita)
-     *
-     * @return Expression
-     */
+    /** expr_unaria = ( "!" | "-" ) , expr_unaria | primario ;   (associativo à direita) */
     private function unaryExpression(): Expression
     {
         $operator = match ($this->current()->type) {
@@ -567,8 +482,6 @@ final class Parser
      *          | "(" , expressao , ")" ;
      *
      * literal = TEXTO | INTEIRO | DECIMAL | "true" | "false" | "null" ;
-     *
-     * @return Expression
      */
     private function primary(): Expression
     {
@@ -628,12 +541,7 @@ final class Parser
      * chamada    = "(" , [ argumentos ] , ")" ;
      * argumentos = expressao , { "," , expressao } ;
      *
-     * Pré-condição: o identificador (nome da função) já foi consumido e o
-     * token atual é "(".
-     *
-     * @param Token $name Token do nome da função.
-     *
-     * @return FunctionCall
+     * Pré-condição: o nome da função já foi consumido.
      */
     private function functionCall(Token $name): FunctionCall
     {
@@ -655,14 +563,8 @@ final class Parser
      * acesso     = { "." , nome_campo } ;
      * nome_campo = IDENT | palavra_reservada ;
      *
-     * Após o ponto, palavras reservadas são aceitas como nomes de campo, pois
-     * campos JSON como "from", "to" ou "type" são comuns nas APIs.
-     *
-     * Pré-condição: o primeiro identificador já foi consumido.
-     *
-     * @param Token $first Token do primeiro identificador do caminho.
-     *
-     * @return FieldReference
+     * Palavras reservadas são aceitas após o ponto porque campos JSON como "from"
+     * e "type" são comuns. Pré-condição: o primeiro identificador já foi consumido.
      */
     private function fieldReference(Token $first): FieldReference
     {
@@ -681,16 +583,11 @@ final class Parser
     }
 
     /**
-     * Reconhece um nível de precedência com operadores associativos à
-     * esquerda: operando { operador operando }.
+     * Nível com operadores associativos à esquerda: operando { operador operando }.
+     * O laço substitui a recursão à esquerda (E → E op T | T) e monta (a op b) op c.
      *
-     * A repetição EBNF substitui a recursão à esquerda da gramática original
-     * (E → E op T | T); o laço monta a árvore à esquerda: (a op b) op c.
-     *
-     * @param callable(): Expression        $operand   Reconhecedor do nível de precedência imediatamente superior.
-     * @param array<string, BinaryOperator> $operators Nome do caso de TokenType => operador da AST.
-     *
-     * @return Expression
+     * @param callable(): Expression        $operand   reconhecedor do nível seguinte
+     * @param array<string, BinaryOperator> $operators nome do caso de TokenType => operador
      */
     private function leftAssociative(callable $operand, array $operators): Expression
     {
@@ -705,18 +602,12 @@ final class Parser
     }
 
     /**
-     * Reconhece um nível de precedência com operadores não associativos:
-     * operando [ operador operando ].
+     * Nível com operadores não associativos: operando [ operador operando ].
+     * Um segundo operador do mesmo nível recebe uma mensagem específica, sugerindo
+     * parênteses (pela GLC ele seria rejeitado de qualquer forma).
      *
-     * Se, após a operação, aparecer outro operador do mesmo nível, o erro é
-     * relatado aqui com uma mensagem específica (pela GLC, esse token não
-     * pertence ao FOLLOW do nível e seria rejeitado de qualquer forma).
-     *
-     * @param callable(): Expression        $operand   Reconhecedor do nível de precedência imediatamente superior.
-     * @param array<string, BinaryOperator> $operators Nome do caso de TokenType => operador da AST.
-     * @param string                        $kind      Nome do grupo de operadores, para a mensagem de erro.
-     *
-     * @return Expression
+     * @param callable(): Expression        $operand   reconhecedor do nível seguinte
+     * @param array<string, BinaryOperator> $operators nome do caso de TokenType => operador
      */
     private function nonAssociative(callable $operand, array $operators, string $kind): Expression
     {
@@ -747,15 +638,8 @@ final class Parser
         return $expression;
     }
 
-    // ---------------------------------------------------------------------
     // Valores dos literais (contrato com o Lexer: Token::$value)
-    // ---------------------------------------------------------------------
 
-    /**
-     * @param Token $token Token StringLiteral.
-     *
-     * @return string Conteúdo do literal, sem aspas.
-     */
     private function stringValue(Token $token): string
     {
         if (!is_string($token->value)) {
@@ -765,11 +649,6 @@ final class Parser
         return $token->value;
     }
 
-    /**
-     * @param Token $token Token IntLiteral.
-     *
-     * @return int
-     */
     private function intValue(Token $token): int
     {
         if (!is_int($token->value)) {
@@ -779,11 +658,6 @@ final class Parser
         return $token->value;
     }
 
-    /**
-     * @param Token $token Token FloatLiteral.
-     *
-     * @return float
-     */
     private function floatValue(Token $token): float
     {
         if (!is_float($token->value) && !is_int($token->value)) {
@@ -793,16 +667,7 @@ final class Parser
         return (float) $token->value;
     }
 
-    /**
-     * Erro interno: o Lexer entregou um literal sem o valor semântico
-     * combinado. Não é um erro do programa .dsl, e sim um defeito do
-     * compilador; por isso não é uma SyntaxException.
-     *
-     * @param Token  $token        Token com valor ausente ou de tipo errado.
-     * @param string $expectedType Tipo PHP esperado em Token::$value.
-     *
-     * @return LogicException
-     */
+    /** Defeito do compilador (literal sem valor vindo do Lexer), não erro do programa. */
     private function contractViolation(Token $token, string $expectedType): LogicException
     {
         return new LogicException(sprintf(
@@ -814,37 +679,19 @@ final class Parser
         ));
     }
 
-    // ---------------------------------------------------------------------
     // Primitivas de leitura de tokens
-    // ---------------------------------------------------------------------
 
-    /**
-     * Token atual (lookahead), sem consumi-lo.
-     *
-     * @return Token
-     */
     private function current(): Token
     {
         return $this->tokens[$this->position];
     }
 
-    /**
-     * Indica se o token atual é do tipo informado.
-     *
-     * @param TokenType $type Tipo esperado.
-     *
-     * @return bool
-     */
     private function check(TokenType $type): bool
     {
         return $this->current()->type === $type;
     }
 
-    /**
-     * Consome e devolve o token atual. Nunca avança além do EOF.
-     *
-     * @return Token
-     */
+    /** Consome e devolve o token atual. Nunca avança além do EOF. */
     private function advance(): Token
     {
         $token = $this->current();
@@ -855,13 +702,6 @@ final class Parser
         return $token;
     }
 
-    /**
-     * Consome o token atual se ele for do tipo informado.
-     *
-     * @param TokenType $type Tipo esperado.
-     *
-     * @return bool true se o token foi consumido.
-     */
     private function match(TokenType $type): bool
     {
         if (!$this->check($type)) {
@@ -873,17 +713,7 @@ final class Parser
         return true;
     }
 
-    /**
-     * Consome o token atual se for do tipo informado; caso contrário, gera um
-     * erro sintático na posição do token atual.
-     *
-     * @param TokenType $type     Tipo esperado.
-     * @param string    $expected Descrição do que era esperado, para a mensagem.
-     *
-     * @return Token O token consumido.
-     *
-     * @throws SyntaxException
-     */
+    /** @throws SyntaxException na posição do token atual */
     private function expect(TokenType $type, string $expected): Token
     {
         if ($this->check($type)) {
@@ -894,13 +724,8 @@ final class Parser
     }
 
     /**
-     * Como expect(TokenType::Semicolon, ...), mas, se o ";" faltar, o erro é
-     * posicionado logo após o token anterior, ou seja, onde o ";" deveria
-     * estar (normalmente no fim da linha), e não no início da linha seguinte.
-     *
-     * @param string $expected Descrição do que era esperado, para a mensagem.
-     *
-     * @return void
+     * Se o ";" faltar, o erro é posicionado logo após o token anterior, onde ele
+     * deveria estar, e não no início da linha seguinte.
      *
      * @throws SyntaxException
      */
@@ -919,15 +744,7 @@ final class Parser
         );
     }
 
-    /**
-     * Cria o erro "esperado X, encontrado: Y" para o token atual.
-     *
-     * @param string   $expected Descrição do que era esperado.
-     * @param int|null $line     Linha do erro (padrão: a do token atual).
-     * @param int|null $column   Coluna do erro (padrão: a do token atual).
-     *
-     * @return SyntaxException
-     */
+    /** Cria o erro "esperado X, encontrado: Y" para o token atual. */
     private function unexpected(string $expected, ?int $line = null, ?int $column = null): SyntaxException
     {
         $found = $this->current();
@@ -940,12 +757,9 @@ final class Parser
     }
 
     /**
-     * Recuperação de erros em modo pânico: descarta tokens até o início da
-     * próxima declaração de nível superior ("api" ou "integration") ou até o
-     * EOF. Depois de "." essas palavras são nomes de campo (ex.: x.api), não
-     * início de declaração, e por isso não servem de ponto de sincronização.
-     *
-     * @return void
+     * Modo pânico: descarta tokens até a próxima declaração ("api" ou "integration")
+     * ou o EOF. Depois de "." essas palavras são nomes de campo (x.api) e não
+     * servem de ponto de sincronização.
      */
     private function synchronize(): void
     {

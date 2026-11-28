@@ -5,14 +5,12 @@ declare(strict_types=1);
 namespace App\Ast\Expression;
 
 /**
- * Operadores unários prefixados (precedência mais alta entre os operadores,
- * associatividade à direita).
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 enum UnaryOperator: string
 {
-    /** Negação lógica. */
     case Not = '!';
 
-    /** Negação aritmética (troca de sinal). */
     case Negate = '-';
 }

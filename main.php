@@ -2,14 +2,6 @@
 
 declare(strict_types=1);
 
-/*
- * API Integration DSL - ponto de entrada da linha de comando.
- *
- * Uso:
- *   php main.php <arquivo.dsl>
- *   php main.php --help
- */
-
 if (PHP_SAPI !== 'cli') {
     fwrite(STDERR, "Este script deve ser executado pela linha de comando.\n");
     exit(1);
@@ -28,7 +20,7 @@ use App\Cli\Application;
 try {
     $exitCode = (new Application(STDOUT, STDERR))->run($argv);
 } catch (Throwable $e) {
-    // Falha inesperada (bug): mensagem curta para o usuário, sem stack trace.
+    // Defeito do compilador: mensagem curta, sem stack trace.
     fwrite(STDERR, sprintf("Erro interno: %s\n", $e->getMessage()));
     $exitCode = 1;
 }

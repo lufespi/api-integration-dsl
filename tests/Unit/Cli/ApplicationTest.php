@@ -14,12 +14,11 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 /**
- * Testes da CLI: argumentos, pipeline completo (Lexer -> Parser -> Analyzer ->
- * PhpGenerator), gravação em output/ e códigos de saída.
+ * Argumentos, pipeline completo, gravação e códigos de saída da CLI. Cada teste usa
+ * um diretório de saída temporário; o PHP gerado só é validado com "php -l".
  *
- * Cada teste usa um diretório de saída temporário próprio, nunca o output/
- * do projeto. O PHP gerado só é validado com "php -l": não é executado e
- * nenhuma requisição HTTP é feita.
+ * @author lufespi
+ * @since 2026-11-17
  */
 final class ApplicationTest extends TestCase
 {
@@ -61,13 +60,7 @@ final class ApplicationTest extends TestCase
         self::removeTree($this->workDirectory);
     }
 
-    /**
-     * Remove um diretório e todo o seu conteúdo.
-     *
-     * @param string $path Diretório ou arquivo.
-     *
-     * @return void
-     */
+    /** Remove um diretório e todo o seu conteúdo. */
     private static function removeTree(string $path): void
     {
         if (is_dir($path) && !is_link($path)) {
@@ -117,14 +110,7 @@ final class ApplicationTest extends TestCase
         return $files;
     }
 
-    /**
-     * Grava um arquivo .dsl no diretório de trabalho e devolve seu caminho.
-     *
-     * @param string $name   Nome do arquivo.
-     * @param string $source Conteúdo.
-     *
-     * @return string
-     */
+    /** Grava um arquivo .dsl no diretório de trabalho e devolve seu caminho. */
     private function writeSource(string $name, string $source): string
     {
         $path = $this->workDirectory . '/' . $name;
@@ -135,8 +121,6 @@ final class ApplicationTest extends TestCase
 
     /**
      * Valida a sintaxe de um arquivo PHP com "php -l", em processo separado.
-     *
-     * @param string $path Arquivo PHP.
      *
      * @return array{exitCode: int, output: string}
      */
@@ -153,8 +137,6 @@ final class ApplicationTest extends TestCase
 
     /**
      * Linhas "// Erro esperado: ..." de um exemplo, sem o prefixo.
-     *
-     * @param string $path Exemplo .dsl.
      *
      * @return list<string>
      */
@@ -173,8 +155,6 @@ final class ApplicationTest extends TestCase
     /**
      * Arquivos .dsl de um subdiretório de examples/, indexados pelo caminho relativo.
      *
-     * @param string $directory Subdiretório de examples/.
-     *
      * @return array<string, array{string}>
      */
     private static function examplesIn(string $directory): array
@@ -190,17 +170,11 @@ final class ApplicationTest extends TestCase
         return $examples;
     }
 
-    // ------------------------------------------------------------------
     // Argumentos e ajuda
-    // ------------------------------------------------------------------
 
     /**
      * Verifica que --help e -h imprimem a ajuda na saída padrão, sem escrever
      * na saída de erro, e terminam com código de sucesso.
-     *
-     * @param string $flag Opção de ajuda fornecida pelo data provider.
-     *
-     * @return void
      */
     #[DataProvider('helpFlags')]
     public function testHelpIsPrintedToStdoutWithSuccessExitCode(string $flag): void
@@ -230,8 +204,6 @@ final class ApplicationTest extends TestCase
     /**
      * Verifica que executar a CLI sem argumentos é erro de uso: mensagem em
      * stderr, nada em stdout e código de saída EXIT_USAGE_ERROR.
-     *
-     * @return void
      */
     public function testMissingArgumentIsAUsageError(): void
     {
@@ -245,8 +217,6 @@ final class ApplicationTest extends TestCase
     /**
      * Verifica que uma opção desconhecida (ex.: --verbose) é rejeitada com
      * EXIT_USAGE_ERROR e que a mensagem cita a opção informada.
-     *
-     * @return void
      */
     public function testUnknownOptionIsAUsageError(): void
     {
@@ -259,8 +229,6 @@ final class ApplicationTest extends TestCase
     /**
      * Verifica que informar mais de um arquivo de entrada é erro de uso, pois
      * a CLI compila apenas um arquivo .dsl por execução.
-     *
-     * @return void
      */
     public function testMoreThanOneInputFileIsAUsageError(): void
     {
@@ -276,8 +244,6 @@ final class ApplicationTest extends TestCase
     /**
      * Verifica que um caminho inexistente gera erro "não encontrado" com
      * EXIT_USAGE_ERROR, citando o arquivo na mensagem.
-     *
-     * @return void
      */
     public function testNonexistentFileIsReported(): void
     {
@@ -293,8 +259,6 @@ final class ApplicationTest extends TestCase
     /**
      * Verifica que um diretório passado como entrada é rejeitado, pois o
      * caminho precisa apontar para um arquivo.
-     *
-     * @return void
      */
     public function testDirectoryIsRejected(): void
     {
@@ -307,8 +271,6 @@ final class ApplicationTest extends TestCase
     /**
      * Verifica que um arquivo existente com extensão diferente de .dsl é
      * rejeitado com EXIT_USAGE_ERROR.
-     *
-     * @return void
      */
     public function testFileWithoutDslExtensionIsRejected(): void
     {
@@ -318,11 +280,7 @@ final class ApplicationTest extends TestCase
         self::assertStringContainsString('.dsl', $this->contents($this->stderr));
     }
 
-    /**
-     * Um arquivo chamado apenas ".dsl" não tem nome para o arquivo de saída.
-     *
-     * @return void
-     */
+    /** Um arquivo chamado apenas ".dsl" não tem nome para o arquivo de saída. */
     public function testFileNamedOnlyByTheExtensionIsRejected(): void
     {
         $exitCode = $this->runCli([$this->writeSource('.dsl', '')]);
@@ -332,11 +290,7 @@ final class ApplicationTest extends TestCase
         self::assertSame([], $this->outputFiles());
     }
 
-    /**
-     * Arquivo sem permissão de leitura é erro de uso, sem tentar compilar.
-     *
-     * @return void
-     */
+    /** Arquivo sem permissão de leitura é erro de uso, sem tentar compilar. */
     public function testUnreadableFileIsAUsageError(): void
     {
         $path = $this->writeSource('secreto.dsl', (string) file_get_contents(self::EXAMPLES . '/valid/exemplo1.dsl'));
@@ -352,18 +306,12 @@ final class ApplicationTest extends TestCase
         self::assertSame([], $this->outputFiles());
     }
 
-    // ------------------------------------------------------------------
     // Compilação bem-sucedida
-    // ------------------------------------------------------------------
 
     /**
      * Cada exemplo válido é compilado para output/<nome>.php: código 0,
      * mensagem de sucesso em stdout, stderr vazio, conteúdo idêntico ao do
      * pipeline Lexer -> Parser -> Analyzer -> PhpGenerator e sintaxe válida.
-     *
-     * @param string $path Exemplo válido.
-     *
-     * @return void
      */
     #[DataProvider('validExamples')]
     public function testValidExampleIsCompiledToOutputDirectory(string $path): void
@@ -401,8 +349,6 @@ final class ApplicationTest extends TestCase
     /**
      * Os exemplos distribuídos com o projeto estão todos presentes: 3 válidos,
      * 3 com erros léxicos, 4 com erros sintáticos e 3 com erros semânticos.
-     *
-     * @return void
      */
     public function testAllExamplesArePresent(): void
     {
@@ -415,8 +361,6 @@ final class ApplicationTest extends TestCase
     /**
      * A extensão é reconhecida sem diferenciar maiúsculas, e o arquivo de
      * saída usa o nome do arquivo de entrada sem a extensão.
-     *
-     * @return void
      */
     public function testOutputNameComesFromInputFileName(): void
     {
@@ -431,11 +375,7 @@ final class ApplicationTest extends TestCase
         self::assertSame(['Minha.Integracao.php'], $this->outputFiles());
     }
 
-    /**
-     * O diretório de saída é criado se ainda não existir.
-     *
-     * @return void
-     */
+    /** O diretório de saída é criado se ainda não existir. */
     public function testMissingOutputDirectoryIsCreated(): void
     {
         $nested = $this->workDirectory . '/a/b/output';
@@ -446,11 +386,7 @@ final class ApplicationTest extends TestCase
         self::assertFileExists($nested . '/exemplo1.php');
     }
 
-    /**
-     * Uma nova compilação bem-sucedida substitui o arquivo anterior.
-     *
-     * @return void
-     */
+    /** Uma nova compilação bem-sucedida substitui o arquivo anterior. */
     public function testSuccessfulCompilationReplacesPreviousOutput(): void
     {
         mkdir($this->outputDirectory);
@@ -465,18 +401,12 @@ final class ApplicationTest extends TestCase
         self::assertSame(['exemplo2.php'], $this->outputFiles());
     }
 
-    // ------------------------------------------------------------------
     // Erros de compilação
-    // ------------------------------------------------------------------
 
     /**
      * Cada exemplo inválido (léxico, sintático ou semântico) termina com
      * EXIT_COMPILATION_ERROR, imprime em stderr exatamente os erros
      * documentados no próprio arquivo e não grava nada em output/.
-     *
-     * @param string $path Exemplo inválido.
-     *
-     * @return void
      */
     #[DataProvider('invalidExamples')]
     public function testInvalidExampleFailsWithDocumentedErrors(string $path): void
@@ -514,8 +444,6 @@ final class ApplicationTest extends TestCase
     /**
      * Programa válido para o Analyzer, mas rejeitado pelo Gerador (origem
      * POST): erro de geração com posição, código 1 e nenhum arquivo.
-     *
-     * @return void
      */
     public function testGenerationErrorFailsWithoutWritingOutput(): void
     {
@@ -537,8 +465,6 @@ final class ApplicationTest extends TestCase
      * Se a compilação falhar, o arquivo de mesmo nome deixado por uma
      * compilação anterior é removido, para não ser confundido com o
      * resultado atual.
-     *
-     * @return void
      */
     public function testFailedCompilationRemovesStaleOutput(): void
     {
@@ -557,15 +483,11 @@ final class ApplicationTest extends TestCase
         self::assertSame([], $this->outputFiles());
     }
 
-    // ------------------------------------------------------------------
     // Falhas de escrita
-    // ------------------------------------------------------------------
 
     /**
      * Diretório de saída que não pode ser criado (o caminho é um arquivo):
      * código 1, mensagem em stderr.
-     *
-     * @return void
      */
     public function testOutputDirectoryThatCannotBeCreatedIsReported(): void
     {
@@ -583,8 +505,6 @@ final class ApplicationTest extends TestCase
     /**
      * Destino ocupado por um diretório: a renomeação falha, o temporário é
      * apagado e nada parcial fica em output/.
-     *
-     * @return void
      */
     public function testOutputFileThatCannotBeReplacedIsReported(): void
     {
@@ -603,8 +523,6 @@ final class ApplicationTest extends TestCase
      * Diretório de saída sem permissão de escrita: código 1. O arquivo de
      * uma compilação anterior também não pode ser apagado, então a CLI avisa
      * que ele não corresponde à entrada atual.
-     *
-     * @return void
      */
     public function testReadOnlyOutputDirectoryIsReported(): void
     {
@@ -624,15 +542,11 @@ final class ApplicationTest extends TestCase
         self::assertSame(['exemplo1.php'], $this->outputFiles());
     }
 
-    // ------------------------------------------------------------------
     // Códigos de saída
-    // ------------------------------------------------------------------
 
     /**
      * Verifica que cada constante EXIT_* da CLI possui um valor diferente e
      * que os valores são os documentados (0, 1 e 2).
-     *
-     * @return void
      */
     public function testExitCodesAreDistinct(): void
     {

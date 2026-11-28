@@ -5,20 +5,13 @@ declare(strict_types=1);
 namespace App\Ast;
 
 /**
- * Operação de uma API: identificador, método HTTP e caminho relativo ao
- * endereço-base.
+ * Declaração `endpoint` (produção decl_endpoint). O caminho sempre começa por "/".
  *
- * Produção correspondente: decl_endpoint (docs/grammar.md).
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final readonly class Endpoint implements Node
 {
-    /**
-     * @param string     $name   Identificador do endpoint.
-     * @param HttpMethod $method Método HTTP.
-     * @param string     $path   Caminho, sempre iniciado por "/".
-     * @param int        $line   Linha da palavra reservada "endpoint".
-     * @param int        $column Coluna da palavra reservada "endpoint".
-     */
     public function __construct(
         public string $name,
         public HttpMethod $method,
@@ -28,9 +21,6 @@ final readonly class Endpoint implements Node
     ) {
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     public function toArray(): array
     {
         return [

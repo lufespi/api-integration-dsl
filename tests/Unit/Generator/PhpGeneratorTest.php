@@ -27,12 +27,10 @@ use Tests\Unit\Generator\Support\Ast;
 use Tests\Unit\Generator\Support\GeneratedScript;
 
 /**
- * Estrutura do código gerado e verificações feitas pelo PhpGenerator
- * (resolução de referências, métodos suportados, duplicidades, segurança).
+ * Estrutura do código gerado e verificações do PhpGenerator, com ASTs montadas à mão.
  *
- * As ASTs são montadas à mão (sem Lexer/Parser). O código é validado com
- * "php -l" e, quando útil, suas funções são executadas com dados simulados
- * em processo separado; nenhuma requisição HTTP é feita aqui.
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class PhpGeneratorTest extends TestCase
 {
@@ -48,7 +46,7 @@ final class PhpGeneratorTest extends TestCase
     }
 
     /**
-     * Programa do exemplo 1 (docs/ast-contract.md): GET -> POST, sem
+     * Programa do exemplo 1: GET -> POST, sem
      * cabeçalhos, alias, condição nem mapeamento.
      */
     private static function example1(): Program
@@ -76,12 +74,11 @@ final class PhpGeneratorTest extends TestCase
         self::assertStringContainsString("targetMethod: 'POST',", $code);
         self::assertStringContainsString("targetUrl: 'https://crm.example.com/v1/contacts',", $code);
         self::assertStringContainsString("condition: null,\n        mapping: null,", $code);
-        self::assertStringContainsString('Sem bloco "map": o registro de origem é enviado sem alterações.', $code);
         self::assertStringContainsString("if (!defined('DSL_NO_AUTORUN')) {\n    exit(dsl_main([\n        dsl_integration_1(...),\n    ]));\n}", $code);
 
         // Autônomo: não depende do compilador, do Composer nem de autoload.
         foreach (['App\\Ast', 'App\\Generator\\Runtime', 'vendor/autoload', 'require', 'include'] as $dependency) {
-            self::assertStringNotContainsString($dependency, str_replace('App\\Generator\\PhpGenerator', '', $code));
+            self::assertStringNotContainsString($dependency, $code);
         }
     }
 
@@ -153,9 +150,7 @@ final class PhpGeneratorTest extends TestCase
         self::assertLessThan(strpos($code, 'function dsl_integration_2('), strpos($code, 'function dsl_integration_1('));
     }
 
-    /**
-     * A mesma AST sempre produz exatamente o mesmo código.
-     */
+    /** A mesma AST sempre produz exatamente o mesmo código. */
     public function testOutputIsDeterministic(): void
     {
         $program = Ast::simpleProgram(alias: 'r', condition: Ast::field('r.ok'), mappings: [
@@ -380,8 +375,7 @@ final class PhpGeneratorTest extends TestCase
     }
 
     /**
-     * Sem referências de campo, "when" e "map" não exigem alias (regra
-     * provisória P12 só se aplica quando há campos).
+     * Sem referências de campo, "when" e "map" não exigem alias.
      */
     public function testWhenAndMapWithoutFieldReferencesDoNotRequireAlias(): void
     {
@@ -395,9 +389,7 @@ final class PhpGeneratorTest extends TestCase
         self::assertEquals((object) ['origem' => 'crm'], $result['value'][1]);
     }
 
-    /**
-     * Destinos PUT e PATCH são aceitos e geram o método correspondente.
-     */
+    /** Destinos PUT e PATCH são aceitos e geram o método correspondente. */
     #[DataProvider('targetMethods')]
     public function testSupportedTargetMethods(HttpMethod $method): void
     {
@@ -486,7 +478,7 @@ final class PhpGeneratorTest extends TestCase
     }
 
     /**
-     * FIX-01: endereços-base e caminhos válidos compõem a URL esperada
+     * Endereços-base e caminhos válidos compõem a URL esperada
      * (caminho do endereço-base preservado, query fixa no endpoint mantida,
      * localhost, IPv4, IPv6 e portas explícitas aceitos).
      */
@@ -516,7 +508,7 @@ final class PhpGeneratorTest extends TestCase
     }
 
     /**
-     * FIX-01: endereços-base que produziriam URLs incorretas ou inseguras
+     * Endereços-base que produziriam URLs incorretas ou inseguras
      * são rejeitados na posição da API.
      */
     #[DataProvider('invalidBaseUrls')]
@@ -563,7 +555,7 @@ final class PhpGeneratorTest extends TestCase
     }
 
     /**
-     * FIX-01: caminhos com fragmento, espaços, caracteres de controle ou sem
+     * Caminhos com fragmento, espaços, caracteres de controle ou sem
      * "/" inicial são rejeitados na posição do endpoint.
      */
     #[DataProvider('invalidPaths')]
@@ -592,7 +584,7 @@ final class PhpGeneratorTest extends TestCase
     }
 
     /**
-     * FIX-01: parâmetros dinâmicos continuam rejeitados no endpoint usado,
+     * Parâmetros dinâmicos continuam rejeitados no endpoint usado,
      * também quando aparecem na query string.
      */
     public function testDynamicPathParametersAreStillRejected(): void

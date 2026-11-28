@@ -5,7 +5,8 @@ declare(strict_types=1);
 namespace App\Ast\Expression;
 
 /**
- * Tipo de um literal escrito no programa.
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 enum LiteralType: string
 {

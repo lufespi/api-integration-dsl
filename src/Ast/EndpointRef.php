@@ -5,22 +5,13 @@ declare(strict_types=1);
 namespace App\Ast;
 
 /**
- * Referência a um endpoint no formato Api.endpoint, usada nas cláusulas
- * "from" e "to" de uma integração.
+ * Referência `Api.endpoint` das cláusulas `from` e `to` (produção ref_endpoint).
  *
- * Produção correspondente: ref_endpoint (docs/grammar.md).
- *
- * A existência da API e do endpoint referenciados é uma verificação
- * semântica, fora do escopo do Parser (ver docs/ast-contract.md, P2).
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final readonly class EndpointRef implements Node
 {
-    /**
-     * @param string $api      Identificador da API.
-     * @param string $endpoint Identificador do endpoint dentro da API.
-     * @param int    $line     Linha do identificador da API.
-     * @param int    $column   Coluna do identificador da API.
-     */
     public function __construct(
         public string $api,
         public string $endpoint,
@@ -29,12 +20,7 @@ final readonly class EndpointRef implements Node
     ) {
     }
 
-    /**
-     * Formato do contrato da AST: apenas o par api + endpoint. A posição fica
-     * disponível nas propriedades $line e $column do objeto.
-     *
-     * @return array{api: string, endpoint: string}
-     */
+    /** @return array{api: string, endpoint: string} sem posição, que fica nas propriedades */
     public function toArray(): array
     {
         return ['api' => $this->api, 'endpoint' => $this->endpoint];

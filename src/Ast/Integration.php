@@ -7,24 +7,14 @@ namespace App\Ast;
 use App\Ast\Expression\Expression;
 
 /**
- * Fluxo de integração: os dados obtidos no endpoint de origem são enviados ao
- * endpoint de destino, opcionalmente filtrados por uma condição ("when") e
- * transformados por mapeamentos de campos ("map").
+ * Declaração `integration` (produção decl_integracao).
  *
- * Produção correspondente: decl_integracao (docs/grammar.md).
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final readonly class Integration implements Node
 {
-    /**
-     * @param string             $name      Identificador da integração.
-     * @param EndpointRef        $source    Endpoint de origem (cláusula "from").
-     * @param string|null        $alias     Nome dado a cada registro da origem ("as"), ou null.
-     * @param EndpointRef        $target    Endpoint de destino (cláusula "to").
-     * @param Expression|null    $condition Condição de encaminhamento ("when"), ou null.
-     * @param list<FieldMapping> $mappings  Mapeamentos de campos ("map"); vazio = enviar o registro inteiro.
-     * @param int                $line      Linha da palavra reservada "integration".
-     * @param int                $column    Coluna da palavra reservada "integration".
-     */
+    /** @param list<FieldMapping> $mappings vazio quando não há `map` (o registro é enviado inteiro) */
     public function __construct(
         public string $name,
         public EndpointRef $source,
@@ -37,9 +27,6 @@ final readonly class Integration implements Node
     ) {
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     public function toArray(): array
     {
         return [

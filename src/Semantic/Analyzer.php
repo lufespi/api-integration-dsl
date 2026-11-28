@@ -21,52 +21,33 @@ use App\Exceptions\SemanticException;
 use InvalidArgumentException;
 
 /**
- * Analisador Semântico: verifica as regras de significado que a gramática
- * livre de contexto não consegue expressar (docs/semantic-analysis.md).
+ * Analisador semântico: verifica sobre a AST as regras que a GLC não expressa
+ * (regras S1–S13 de docs/grammar.md). Percorre o programa inteiro e lança todos
+ * os erros juntos em uma SemanticException, ordenados por posição no fonte.
  *
- * Fica entre o Parser e o Generator: recebe a AST de um programa já
- * sintaticamente válido e garante que o Generator nunca precise lidar com
- * referências inexistentes, nomes repetidos ou funções desconhecidas.
- *
- * Regras verificadas:
- *  - nomes únicos: APIs, endpoints dentro de cada API, cabeçalhos dentro de
- *    cada API (sem diferenciar maiúsculas), integrações e campos do "map";
- *  - "from" e "to" referenciam uma API e um endpoint realmente declarados
- *    (a ordem das declarações no arquivo não importa);
- *  - em "when" e "map", todo caminho de campo começa pelo alias declarado em
- *    "from ... as alias"; sem alias, nenhum campo pode ser referenciado;
- *  - cabeçalhos de API não referenciam campos de registro;
- *  - funções chamadas existem e recebem o número certo de argumentos;
- *  - env() recebe um texto literal com um nome de variável de ambiente válido.
- *
- * Todos os erros do programa são coletados e lançados juntos em uma
- * SemanticException, ordenados por posição no fonte.
+ * @author pedro.augusto
+ * @since 2026-11-28
  */
 final class Analyzer
 {
-    /**
-     * Funções embutidas aceitas por padrão: nome => número de argumentos.
-     * Deve ser mantida alinhada ao que o Generator sabe traduzir para PHP
-     * (ExpressionCompiler::FUNCTIONS): nesta versão, apenas env("NOME").
-     */
+    /** Funções embutidas: nome => número de argumentos. Deve coincidir com ExpressionCompiler::FUNCTIONS. */
     public const DEFAULT_FUNCTIONS = [
         'env' => 1,
     ];
 
-    /** Nome válido de variável de ambiente em env("NOME"), o mesmo aceito pelo Generator. */
+    /** Mesmo padrão aceito pelo Generator. */
     private const ENV_NAME_PATTERN = '/^[A-Za-z_][A-Za-z0-9_]*$/';
 
-    /** @var array<string, int> Funções aceitas: nome => aridade. */
+    /** @var array<string, int> nome => aridade */
     private readonly array $functions;
 
-    /** @var list<SemanticError> Erros da análise em andamento. */
+    /** @var list<SemanticError> */
     private array $errors = [];
 
     /**
-     * @param array<string, int> $functions Funções aceitas: nome => número de argumentos.
+     * @param array<string, int> $functions nome => número de argumentos
      *
-     * @throws InvalidArgumentException se o nome não for texto não vazio, a aridade não for inteiro >= 0
-     *                                  ou env() não tiver exatamente 1 argumento.
+     * @throws InvalidArgumentException se a tabela for inválida ou env() não tiver exatamente 1 argumento
      */
     public function __construct(array $functions = self::DEFAULT_FUNCTIONS)
     {
@@ -86,14 +67,9 @@ final class Analyzer
     }
 
     /**
-     * Analisa o programa. Se estiver correto, devolve o mesmo Program, o que
-     * permite encadear: $analyzer->analyze($parser->parse()).
+     * Devolve o mesmo Program quando não há erros.
      *
-     * @param Program $program AST produzida pelo Parser.
-     *
-     * @return Program O mesmo programa recebido.
-     *
-     * @throws SemanticException se houver ao menos um erro semântico.
+     * @throws SemanticException
      */
     public function analyze(Program $program): Program
     {
@@ -157,13 +133,7 @@ final class Analyzer
         throw new SemanticException($errors);
     }
 
-    /**
-     * Verifica endpoints e cabeçalhos de uma API.
-     *
-     * @param Api $api API a verificar.
-     *
-     * @return array<string, Endpoint> Endpoints da API pelo nome (primeira declaração de cada).
-     */
+    /** @return array<string, Endpoint> primeira declaração de cada nome */
     private function checkApi(Api $api): array
     {
         $endpoints = [];
@@ -229,14 +199,7 @@ final class Analyzer
         return $endpoints;
     }
 
-    /**
-     * Verifica referências "from"/"to", campos do "when" e do "map".
-     *
-     * @param Integration                          $integration Integração a verificar.
-     * @param array<string, array<string, Endpoint>> $catalog     API => endpoints declarados.
-     *
-     * @return void
-     */
+    /** @param array<string, array<string, Endpoint>> $catalog API => endpoints */
     private function checkIntegration(Integration $integration, array $catalog): void
     {
         $this->checkEndpointReference($integration->source, 'from', $integration, $catalog);
@@ -310,16 +273,7 @@ final class Analyzer
         }
     }
 
-    /**
-     * Verifica se "Api.endpoint" de uma cláusula "from" ou "to" existe.
-     *
-     * @param EndpointRef                          $reference   Referência a verificar.
-     * @param string                               $clause      "from" ou "to".
-     * @param Integration                          $integration Integração que contém a cláusula.
-     * @param array<string, array<string, Endpoint>> $catalog     API => endpoints declarados.
-     *
-     * @return void
-     */
+    /** @param array<string, array<string, Endpoint>> $catalog API => endpoints */
     private function checkEndpointReference(
         EndpointRef $reference,
         string $clause,
@@ -362,13 +316,10 @@ final class Analyzer
     }
 
     /**
-     * Percorre uma expressão: valida as chamadas de função e entrega cada
-     * referência a campo ao verificador do contexto (cabeçalho, "when" ou "map").
+     * Valida as chamadas de função e entrega cada referência a campo ao
+     * verificador do contexto (cabeçalho, "when" ou "map").
      *
-     * @param Expression                     $expression  Expressão a percorrer.
-     * @param callable(FieldReference): void $onReference Verificação específica do contexto.
-     *
-     * @return void
+     * @param callable(FieldReference): void $onReference
      */
     private function checkExpression(Expression $expression, callable $onReference): void
     {
@@ -401,13 +352,6 @@ final class Analyzer
         // Literal: nada a verificar.
     }
 
-    /**
-     * Verifica se a função existe e se recebeu o número esperado de argumentos.
-     *
-     * @param FunctionCall $call Chamada a verificar.
-     *
-     * @return void
-     */
     private function checkCall(FunctionCall $call): void
     {
         if (!isset($this->functions[$call->name])) {
@@ -447,13 +391,8 @@ final class Analyzer
     }
 
     /**
-     * Verifica o argumento de env("NOME"): deve ser um texto literal com um
-     * nome de variável de ambiente válido, para que dados do registro nunca
-     * escolham qual variável é lida (mesma regra do Generator).
-     *
-     * @param FunctionCall $call Chamada de env() com exatamente 1 argumento.
-     *
-     * @return void
+     * O argumento de env() deve ser um texto literal com nome válido, para que dados
+     * do registro nunca escolham qual variável é lida.
      */
     private function checkEnvArgument(FunctionCall $call): void
     {
@@ -482,13 +421,9 @@ final class Analyzer
     }
 
     /**
-     * Sufixo "; rótulo: a, b, c" com os nomes disponíveis, ou texto vazio se
-     * não houver nenhum.
+     * Sufixo "; rótulo: a, b, c", ou texto vazio se não houver nomes.
      *
-     * @param string       $label Rótulo da lista.
-     * @param list<string> $names Nomes disponíveis.
-     *
-     * @return string
+     * @param list<string> $names
      */
     private function available(string $label, array $names): string
     {
@@ -499,27 +434,12 @@ final class Analyzer
         return sprintf('; %s: %s', $label, implode(', ', $names));
     }
 
-    /**
-     * "1 argumento", "2 argumentos", "0 argumentos".
-     *
-     * @param int $count Quantidade de argumentos.
-     *
-     * @return string
-     */
+    /** "1 argumento", "2 argumentos", "0 argumentos". */
     private static function arguments(int $count): string
     {
         return sprintf('%d %s', $count, $count === 1 ? 'argumento' : 'argumentos');
     }
 
-    /**
-     * Registra um erro da análise em andamento.
-     *
-     * @param string $message Descrição do problema, sem a posição.
-     * @param int    $line    Linha no fonte.
-     * @param int    $column  Coluna no fonte.
-     *
-     * @return void
-     */
     private function report(string $message, int $line, int $column): void
     {
         $this->errors[] = new SemanticError($message, $line, $column);

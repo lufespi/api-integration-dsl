@@ -15,27 +15,21 @@ use App\Ast\Expression\UnaryExpression;
 use App\Ast\Expression\UnaryOperator;
 
 /**
- * Traduz expressões da AST (App\Ast\Expression) para expressões PHP.
+ * Traduz expressões da AST para expressões PHP que chamam as funções da RuntimeLibrary.
  *
- * O código produzido chama as funções de RuntimeLibrary (dsl_add,
- * dsl_compare, dsl_field...) e lê o registro corrente da variável $record.
- * Cada nó vira uma chamada de função ou uma expressão entre parênteses, então
- * a precedência e a associatividade são exatamente as da árvore montada pelo
- * Parser.
+ * Cada nó vira uma chamada de função ou uma expressão entre parênteses, o que
+ * preserva a precedência e a associatividade da árvore. Nenhum texto da AST é
+ * concatenado como código: literais e nomes são emitidos com var_export().
  *
- * Segurança: nenhum texto vindo da AST é concatenado como código. Literais,
- * nomes de campos e de variáveis de ambiente são emitidos com var_export(),
- * que produz literais PHP corretamente escapados, e só a função embutida
- * env() pode ser chamada.
- *
- * @internal Usada pelo PhpGenerator; pública para ser testada isoladamente.
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class ExpressionCompiler
 {
-    /** Funções embutidas aceitas pela DSL (pendência P7: outras dependem do grupo). */
+    /** Funções embutidas; Analyzer::DEFAULT_FUNCTIONS deve coincidir. */
     public const FUNCTIONS = ['env'];
 
-    /** Precedência dos operadores binários (docs/grammar.md, seção 6), para describe(). */
+    /** Precedência dos operadores binários, usada apenas por describe(). */
     private const PRECEDENCE = [
         '||' => 1,
         '&&' => 2,
@@ -46,13 +40,9 @@ final class ExpressionCompiler
     ];
 
     /**
-     * Traduz uma expressão avaliada sem registro (valor de cabeçalho).
+     * Expressão avaliada sem registro (valor de cabeçalho).
      *
-     * @param Expression $expression Expressão da AST.
-     *
-     * @return string Expressão PHP.
-     *
-     * @throws GenerationException Se a expressão usar campos ou funções inválidas.
+     * @throws GenerationException
      */
     public function compileWithoutRecord(Expression $expression): string
     {
@@ -60,32 +50,17 @@ final class ExpressionCompiler
     }
 
     /**
-     * Traduz uma expressão avaliada para cada registro ("when" ou "map").
+     * Expressão avaliada para cada registro ("when" ou "map"): referências de campo
+     * exigem alias e devem começar por ele.
      *
-     * Regra provisória (pendência P12): referências de campo exigem um alias
-     * explícito ("from Api.endpoint as alias") e devem começar por ele.
-     *
-     * @param Expression  $expression  Expressão da AST.
-     * @param string      $integration Nome da integração (para mensagens de erro).
-     * @param string|null $alias       Alias do registro, ou null se omitido.
-     *
-     * @return string Expressão PHP que lê o registro de $record.
-     *
-     * @throws GenerationException Se a expressão usar campos ou funções inválidas.
+     * @throws GenerationException
      */
     public function compileForRecord(Expression $expression, string $integration, ?string $alias): string
     {
         return $this->compile($expression, $integration, $alias);
     }
 
-    /**
-     * Reconstrói o texto da expressão na sintaxe da DSL, com o mínimo de
-     * parênteses. Usado em comentários do código gerado.
-     *
-     * @param Expression $expression Expressão da AST.
-     *
-     * @return string
-     */
+    /** Texto da expressão na sintaxe da DSL, com o mínimo de parênteses (usado em comentários). */
     public function describe(Expression $expression): string
     {
         return match (true) {
@@ -113,13 +88,7 @@ final class ExpressionCompiler
         };
     }
 
-    /**
-     * Converte um valor escalar em literal PHP seguro.
-     *
-     * @param string|int|float|bool|null $value Valor a emitir.
-     *
-     * @return string Literal PHP; números negativos entre parênteses.
-     */
+    /** Literal PHP seguro; números negativos ficam entre parênteses. */
     public static function phpLiteral(string|int|float|bool|null $value): string
     {
         if ($value === null) {
@@ -130,13 +99,6 @@ final class ExpressionCompiler
         return (is_int($value) || is_float($value)) && str_starts_with($code, '-') ? '(' . $code . ')' : $code;
     }
 
-    /**
-     * @param Expression  $expression  Expressão a traduzir.
-     * @param string|null $integration Integração corrente; null quando não há registro.
-     * @param string|null $alias       Alias do registro.
-     *
-     * @return string
-     */
     private function compile(Expression $expression, ?string $integration, ?string $alias): string
     {
         return match (true) {
@@ -151,11 +113,6 @@ final class ExpressionCompiler
         };
     }
 
-    /**
-     * @param Literal $literal Literal da AST.
-     *
-     * @return string
-     */
     private function literal(Literal $literal): string
     {
         $value = $literal->value;
@@ -184,13 +141,6 @@ final class ExpressionCompiler
         return self::phpLiteral($value);
     }
 
-    /**
-     * @param FieldReference $reference   Referência da AST.
-     * @param string|null    $integration Integração corrente; null quando não há registro.
-     * @param string|null    $alias       Alias do registro.
-     *
-     * @return string
-     */
     private function fieldReference(FieldReference $reference, ?string $integration, ?string $alias): string
     {
         $path = $reference->path;
@@ -239,10 +189,6 @@ final class ExpressionCompiler
     /**
      * Apenas env("NOME") é aceita: o nome deve ser um texto literal, para que
      * dados do registro nunca escolham qual variável de ambiente é lida.
-     *
-     * @param FunctionCall $call Chamada da AST.
-     *
-     * @return string
      */
     private function functionCall(FunctionCall $call): string
     {
@@ -281,13 +227,6 @@ final class ExpressionCompiler
         return sprintf('dsl_env(%s)', var_export($argument->value, true));
     }
 
-    /**
-     * @param UnaryExpression $expression  Expressão unária da AST.
-     * @param string|null     $integration Integração corrente.
-     * @param string|null     $alias       Alias do registro.
-     *
-     * @return string
-     */
     private function unary(UnaryExpression $expression, ?string $integration, ?string $alias): string
     {
         $operand = $this->compile($expression->operand, $integration, $alias);
@@ -306,12 +245,6 @@ final class ExpressionCompiler
     /**
      * Lógicos usam os operadores nativos do PHP (curto-circuito, conversão
      * booleana do PHP); os demais são funções de runtime com checagem de tipos.
-     *
-     * @param BinaryExpression $expression  Expressão binária da AST.
-     * @param string|null      $integration Integração corrente.
-     * @param string|null      $alias       Alias do registro.
-     *
-     * @return string
      */
     private function binary(BinaryExpression $expression, ?string $integration, ?string $alias): string
     {
@@ -344,12 +277,6 @@ final class ExpressionCompiler
     /**
      * Descreve um operando de operação binária, com parênteses apenas quando
      * a precedência ou a associatividade (à esquerda) os exigem.
-     *
-     * @param Expression     $operand Operando.
-     * @param BinaryOperator $parent  Operador da expressão que contém o operando.
-     * @param bool           $isRight Se o operando está à direita.
-     *
-     * @return string
      */
     private function describeOperand(Expression $operand, BinaryOperator $parent, bool $isRight): string
     {

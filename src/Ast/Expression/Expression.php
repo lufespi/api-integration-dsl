@@ -7,12 +7,10 @@ namespace App\Ast\Expression;
 use App\Ast\Node;
 
 /**
- * Expressão da DSL: literal, referência a campo, chamada de função, operação
- * unária ou binária.
+ * Literal, referência a campo, chamada de função ou operação unária/binária.
  *
- * Usada em cabeçalhos, na condição "when" e nos mapeamentos de campos.
- * Produção correspondente: expressao e seus níveis de precedência
- * (docs/grammar.md, seção 5).
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 interface Expression extends Node
 {

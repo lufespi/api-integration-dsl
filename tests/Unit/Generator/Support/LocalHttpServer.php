@@ -7,13 +7,11 @@ namespace Tests\Unit\Generator\Support;
 use RuntimeException;
 
 /**
- * Servidor HTTP de testes: o servidor embutido do PHP ("php -S") escutando
- * apenas em 127.0.0.1, em uma porta livre.
+ * Servidor embutido do PHP ("php -S") em 127.0.0.1 que substitui as APIs nos testes.
+ * Rotas não configuradas respondem 201 com {"ok":true}.
  *
- * Substitui as APIs reais nos testes do código gerado: cada teste define as
- * respostas por "MÉTODO /caminho" e depois inspeciona as requisições
- * recebidas (método, caminho, query string, cabeçalhos e body). Rotas não configuradas
- * respondem 201 com {"ok":true}. Nenhum serviço externo é acessado.
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class LocalHttpServer
 {

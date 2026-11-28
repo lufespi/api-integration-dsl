@@ -24,9 +24,11 @@ use App\Ast\Integration;
 use App\Ast\Program;
 
 /**
- * Atalhos para montar ASTs à mão nos testes do Gerador, sem Lexer nem Parser
- * (docs/ast-contract.md, seção 1). Posições são sempre linha 1, coluna 1,
- * exceto quando o teste constrói o nó diretamente.
+ * Atalhos para montar ASTs à mão nos testes do Gerador, sem Lexer nem Parser.
+ * Posições são sempre linha 1, coluna 1, exceto quando o teste constrói o nó.
+ *
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class Ast
 {
@@ -58,11 +60,7 @@ final class Ast
         return new Header($name, $value, 1, 1);
     }
 
-    /**
-     * @param string             $source "Api.endpoint" de origem.
-     * @param string             $target "Api.endpoint" de destino.
-     * @param list<FieldMapping> $mappings
-     */
+    /** @param list<FieldMapping> $mappings */
     public static function integration(
         string $name,
         string $source,
@@ -111,7 +109,6 @@ final class Ast
         return new Literal(LiteralType::Null, null, 1, 1);
     }
 
-    /** @param string $path Caminho com pontos, ex.: "contato.cliente.email". */
     public static function field(string $path): FieldReference
     {
         return new FieldReference(explode('.', $path), 1, 1);
@@ -143,8 +140,7 @@ final class Ast
     }
 
     /**
-     * Programa mínimo: Src.list (GET) -> Dst.create (método informado), com
-     * cabeçalhos, alias, condição e mapeamento opcionais.
+     * Programa mínimo Src.list (GET) -> Dst.create, com partes opcionais.
      *
      * @param list<FieldMapping> $mappings
      * @param list<Header>       $sourceHeaders

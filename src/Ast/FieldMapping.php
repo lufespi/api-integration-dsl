@@ -7,20 +7,13 @@ namespace App\Ast;
 use App\Ast\Expression\Expression;
 
 /**
- * Mapeamento de um campo do registro enviado ao destino
- * (ex.: nome: string = user.firstName + " " + user.lastName;).
+ * Campo do bloco `map`: `nome: tipo = expressão;` (produção mapeamento).
  *
- * Produção correspondente: mapeamento (docs/grammar.md).
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final readonly class FieldMapping implements Node
 {
-    /**
-     * @param string     $field    Nome do campo no registro de destino.
-     * @param DataType   $dataType Tipo para o qual o valor deve ser convertido.
-     * @param Expression $value    Expressão que calcula o valor do campo.
-     * @param int        $line     Linha do nome do campo.
-     * @param int        $column   Coluna do nome do campo.
-     */
     public function __construct(
         public string $field,
         public DataType $dataType,
@@ -30,9 +23,6 @@ final readonly class FieldMapping implements Node
     ) {
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     public function toArray(): array
     {
         return [

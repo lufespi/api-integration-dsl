@@ -7,19 +7,13 @@ namespace App\Ast;
 use App\Ast\Expression\Expression;
 
 /**
- * Cabeçalho HTTP enviado em todas as requisições a uma API
- * (ex.: header "Authorization" = "Bearer " + env("CRM_TOKEN");).
+ * Declaração `header "Nome" = expressão;` (produção decl_header).
  *
- * Produção correspondente: decl_header (docs/grammar.md).
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final readonly class Header implements Node
 {
-    /**
-     * @param string     $name   Nome do cabeçalho, como escrito no fonte.
-     * @param Expression $value  Expressão que calcula o valor do cabeçalho.
-     * @param int        $line   Linha da palavra reservada "header".
-     * @param int        $column Coluna da palavra reservada "header".
-     */
     public function __construct(
         public string $name,
         public Expression $value,
@@ -28,9 +22,6 @@ final readonly class Header implements Node
     ) {
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     public function toArray(): array
     {
         return [

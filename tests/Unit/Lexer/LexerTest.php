@@ -14,6 +14,9 @@ use PHPUnit\Framework\TestCase;
 /**
  * Testes do Analisador Léxico: tokens reconhecidos, valores, posições, erros
  * e os programas de examples/.
+ *
+ * @author Comassetto
+ * @since 2026-11-24
  */
 final class LexerTest extends TestCase
 {
@@ -22,11 +25,7 @@ final class LexerTest extends TestCase
     /** Prefixo das linhas de comentário que documentam o erro esperado. */
     private const EXPECTED_ERROR_MARKER = '// Erro esperado: ';
 
-    /**
-     * @param string $source Programa na DSL.
-     *
-     * @return list<Token>
-     */
+    /** @return list<Token> */
     private function lex(string $source): array
     {
         return (new Lexer($source))->tokenize();
@@ -34,8 +33,6 @@ final class LexerTest extends TestCase
 
     /**
      * Tipos dos tokens, sem o Eof final.
-     *
-     * @param string $source Programa na DSL.
      *
      * @return list<TokenType>
      */
@@ -51,10 +48,6 @@ final class LexerTest extends TestCase
     /**
      * Verifica que um fonte vazio ou só com espaços e comentários gera apenas
      * o token Eof.
-     *
-     * @param string $source Programa na DSL.
-     *
-     * @return void
      */
     #[DataProvider('blankSources')]
     public function testBlankSourceProducesOnlyEof(string $source): void
@@ -62,9 +55,7 @@ final class LexerTest extends TestCase
         self::assertSame([], $this->types($source));
     }
 
-    /**
-     * @return iterable<string, array{string}>
-     */
+    /** @return iterable<string, array{string}> */
     public static function blankSources(): iterable
     {
         yield 'vazio' => [''];
@@ -75,10 +66,6 @@ final class LexerTest extends TestCase
     /**
      * Verifica que cada palavra reservada, operador e delimitador do contrato
      * é reconhecido com o tipo certo e sem valor semântico.
-     *
-     * @param TokenType $type Terminal da gramática.
-     *
-     * @return void
      */
     #[DataProvider('fixedTerminals')]
     public function testEveryFixedTerminalIsRecognized(TokenType $type): void
@@ -105,11 +92,7 @@ final class LexerTest extends TestCase
         }
     }
 
-    /**
-     * Verifica que maiúsculas importam e que só a palavra inteira é reservada.
-     *
-     * @return void
-     */
+    /** Verifica que maiúsculas importam e que só a palavra inteira é reservada. */
     public function testReservedWordsAreExact(): void
     {
         foreach ($this->types('Api API get Get TRUE apis api_ mapX _map IDENTIFIER EOF') as $type) {
@@ -117,11 +100,7 @@ final class LexerTest extends TestCase
         }
     }
 
-    /**
-     * Verifica o valor e o lexema dos números.
-     *
-     * @return void
-     */
+    /** Verifica o valor e o lexema dos números. */
     public function testNumbersCarryTheirValue(): void
     {
         $tokens = $this->lex('18 99.5 0 007 9223372036854775807');
@@ -132,21 +111,13 @@ final class LexerTest extends TestCase
         self::assertSame('007', $tokens[3]->lexeme);
     }
 
-    /**
-     * Verifica que o sinal é um operador à parte do número.
-     *
-     * @return void
-     */
+    /** Verifica que o sinal é um operador à parte do número. */
     public function testNumbersHaveNoSign(): void
     {
         self::assertSame([TokenType::Minus, TokenType::IntLiteral], $this->types('-5'));
     }
 
-    /**
-     * Verifica que o ponto só faz parte do número quando há dígito depois.
-     *
-     * @return void
-     */
+    /** Verifica que o ponto só faz parte do número quando há dígito depois. */
     public function testDotIsDecimalPointOnlyBeforeDigit(): void
     {
         self::assertSame([TokenType::IntLiteral, TokenType::Dot, TokenType::Identifier], $this->types('1.a'));
@@ -156,8 +127,6 @@ final class LexerTest extends TestCase
     /**
      * Verifica que o valor do texto vem sem aspas e com escapes resolvidos, e
      * que o lexema preserva o original.
-     *
-     * @return void
      */
     public function testTextValueResolvesEscapes(): void
     {
@@ -170,21 +139,13 @@ final class LexerTest extends TestCase
         self::assertSame('', $this->lex('""')[0]->value);
     }
 
-    /**
-     * Verifica que comentário dentro de texto é texto.
-     *
-     * @return void
-     */
+    /** Verifica que comentário dentro de texto é texto. */
     public function testCommentMarkersInsideTextAreKept(): void
     {
         self::assertSame('https://x/#a/*b*/', $this->lex('"https://x/#a/*b*/"')[0]->value);
     }
 
-    /**
-     * Verifica que vale o maior casamento, com ou sem espaços.
-     *
-     * @return void
-     */
+    /** Verifica que vale o maior casamento, com ou sem espaços. */
     public function testLongestMatchWins(): void
     {
         self::assertSame(
@@ -194,11 +155,7 @@ final class LexerTest extends TestCase
         self::assertSame([TokenType::EqualEqual, TokenType::Assign], $this->types('==='));
     }
 
-    /**
-     * Verifica que a barra sozinha é divisão e que comentários somem.
-     *
-     * @return void
-     */
+    /** Verifica que a barra sozinha é divisão e que comentários somem. */
     public function testSlashIsNotConfusedWithComments(): void
     {
         self::assertSame(
@@ -207,13 +164,7 @@ final class LexerTest extends TestCase
         );
     }
 
-    /**
-     * Verifica linha e coluna, com CRLF contado como uma só quebra.
-     *
-     * @param string $newline Fim de linha usado no fonte.
-     *
-     * @return void
-     */
+    /** Verifica linha e coluna, com CRLF contado como uma só quebra. */
     #[DataProvider('newlines')]
     public function testPositions(string $newline): void
     {
@@ -225,20 +176,14 @@ final class LexerTest extends TestCase
         );
     }
 
-    /**
-     * @return iterable<string, array{string}>
-     */
+    /** @return iterable<string, array{string}> */
     public static function newlines(): iterable
     {
         yield 'LF' => ["\n"];
         yield 'CRLF' => ["\r\n"];
     }
 
-    /**
-     * Verifica que o BOM no início do arquivo é ignorado.
-     *
-     * @return void
-     */
+    /** Verifica que o BOM no início do arquivo é ignorado. */
     public function testBomIsIgnored(): void
     {
         $token = $this->lex("\xEF\xBB\xBFapi")[0];
@@ -246,11 +191,7 @@ final class LexerTest extends TestCase
         self::assertSame([TokenType::Api, 1], [$token->type, $token->column]);
     }
 
-    /**
-     * Verifica que a mesma instância pode analisar o fonte mais de uma vez.
-     *
-     * @return void
-     */
+    /** Verifica que a mesma instância pode analisar o fonte mais de uma vez. */
     public function testTokenizeCanBeCalledTwice(): void
     {
         $lexer = new Lexer('api Crm {');
@@ -258,16 +199,7 @@ final class LexerTest extends TestCase
         self::assertEquals($lexer->tokenize(), $lexer->tokenize());
     }
 
-    /**
-     * Verifica a mensagem completa e a posição de cada erro léxico.
-     *
-     * @param string $source Programa na DSL.
-     * @param int    $line   Linha esperada.
-     * @param int    $column Coluna esperada.
-     * @param string $reason Motivo esperado.
-     *
-     * @return void
-     */
+    /** Verifica a mensagem completa e a posição de cada erro léxico. */
     #[DataProvider('lexicalErrors')]
     public function testLexicalErrors(string $source, int $line, int $column, string $reason): void
     {
@@ -286,9 +218,7 @@ final class LexerTest extends TestCase
         self::fail('Era esperada uma LexicalException.');
     }
 
-    /**
-     * @return iterable<string, array{string, int, int, string}>
-     */
+    /** @return iterable<string, array{string, int, int, string}> */
     public static function lexicalErrors(): iterable
     {
         yield 'caractere inválido' => ["api X\n  @", 2, 3, "caractere inválido '@'"];
@@ -311,22 +241,14 @@ final class LexerTest extends TestCase
         yield 'UTF-8 inválido' => ["api\nç \xFF", 2, 3, 'o arquivo não está em UTF-8'];
     }
 
-    /**
-     * Verifica que exemplos válidos e com erro sintático passam pelo Lexer.
-     *
-     * @param string $path Caminho do exemplo.
-     *
-     * @return void
-     */
+    /** Verifica que exemplos válidos e com erro sintático passam pelo Lexer. */
     #[DataProvider('lexicallyValidExamples')]
     public function testLexicallyValidExampleIsAccepted(string $path): void
     {
         self::assertNotEmpty($this->types((string) file_get_contents($path)));
     }
 
-    /**
-     * @return iterable<string, array{string}>
-     */
+    /** @return iterable<string, array{string}> */
     public static function lexicallyValidExamples(): iterable
     {
         yield from self::examplesIn('valid');
@@ -336,10 +258,6 @@ final class LexerTest extends TestCase
     /**
      * Verifica que cada exemplo com erro léxico é rejeitado com a mensagem
      * documentada no próprio arquivo.
-     *
-     * @param string $path Caminho do exemplo.
-     *
-     * @return void
      */
     #[DataProvider('lexicalErrorExamples')]
     public function testLexicalErrorExampleIsRejectedWithDocumentedError(string $path): void
@@ -358,19 +276,13 @@ final class LexerTest extends TestCase
         $this->lex($source);
     }
 
-    /**
-     * @return iterable<string, array{string}>
-     */
+    /** @return iterable<string, array{string}> */
     public static function lexicalErrorExamples(): iterable
     {
         return self::examplesIn('invalid/lexical');
     }
 
-    /**
-     * @param string $directory Subdiretório de examples/.
-     *
-     * @return \Generator<string, array{string}>
-     */
+    /** @return \Generator<string, array{string}> */
     private static function examplesIn(string $directory): \Generator
     {
         foreach (glob(self::EXAMPLES . '/' . $directory . '/*.dsl') ?: [] as $file) {

@@ -7,23 +7,21 @@ namespace App\Lexer;
 use App\Exceptions\LexicalException;
 
 /**
- * Analisador léxico: converte o texto-fonte em uma lista de tokens.
+ * Analisador léxico escrito à mão: o primeiro caractere decide o tipo do token.
+ * Linha e coluna começam em 1 e contam caracteres UTF-8, não bytes.
  *
- * Escrito à mão, lê um caractere por vez e decide o tipo do token pelo
- * primeiro caractere (letra, dígito, aspas ou símbolo). Espaços e comentários
- * são descartados. Especificação em docs/tokens.md.
- *
- * Linha e coluna começam em 1 e contam caracteres (UTF-8), não bytes.
+ * @author Comassetto
+ * @since 2026-11-24
  */
 final class Lexer
 {
-    /** Sequências de escape aceitas em textos: caractere após a barra => valor. */
+    /** Escapes aceitos em textos: caractere após a barra => valor. */
     private const ESCAPES = ['"' => '"', '\\' => '\\', 'n' => "\n", 't' => "\t"];
 
-    /** @var list<string> Caracteres do fonte. */
+    /** @var list<string> */
     private readonly array $chars;
 
-    /** @var array<string, TokenType> Palavras reservadas: lexema => tipo. */
+    /** @var array<string, TokenType> */
     private readonly array $reservedWords;
 
     private int $position = 0;
@@ -32,14 +30,9 @@ final class Lexer
 
     private int $column = 1;
 
-    /**
-     * @param string $source Programa na DSL, em UTF-8.
-     *
-     * @throws LexicalException se o texto não for UTF-8 válido.
-     */
+    /** @throws LexicalException se o texto não for UTF-8 válido */
     public function __construct(string $source)
     {
-        // Remove o BOM e normaliza o fim de linha do Windows.
         if (str_starts_with($source, "\xEF\xBB\xBF")) {
             $source = substr($source, 3);
         }
@@ -51,11 +44,9 @@ final class Lexer
     }
 
     /**
-     * Analisa o fonte inteiro.
+     * @return list<Token> terminada por exatamente um Eof
      *
-     * @return list<Token> Tokens em ordem, terminados por exatamente um Eof.
-     *
-     * @throws LexicalException no primeiro erro léxico encontrado.
+     * @throws LexicalException no primeiro erro léxico
      */
     public function tokenize(): array
     {
@@ -77,11 +68,6 @@ final class Lexer
         }
     }
 
-    /**
-     * Reconhece o próximo token a partir do caractere atual.
-     *
-     * @return Token
-     */
     private function nextToken(): Token
     {
         $char = $this->peek();
@@ -94,11 +80,7 @@ final class Lexer
         };
     }
 
-    /**
-     * Palavra reservada ou identificador: [A-Za-z_][A-Za-z0-9_]*
-     *
-     * @return Token
-     */
+    /** [A-Za-z_][A-Za-z0-9_]*: palavra reservada ou identificador. */
     private function word(): Token
     {
         [$line, $column] = [$this->line, $this->column];
@@ -111,11 +93,7 @@ final class Lexer
         return new Token($this->reservedWords[$lexeme] ?? TokenType::Identifier, $lexeme, $line, $column);
     }
 
-    /**
-     * Literal inteiro [0-9]+ ou decimal [0-9]+\.[0-9]+, sem sinal.
-     *
-     * @return Token
-     */
+    /** [0-9]+ ou [0-9]+\.[0-9]+, sem sinal. */
     private function number(): Token
     {
         [$line, $column] = [$this->line, $this->column];
@@ -151,13 +129,7 @@ final class Lexer
         return new Token($isFloat ? TokenType::FloatLiteral : TokenType::IntLiteral, $lexeme, $line, $column, $value);
     }
 
-    /**
-     * Literal de texto entre aspas duplas, em uma única linha.
-     *
-     * O lexema mantém as aspas e os escapes originais; o valor, não.
-     *
-     * @return Token
-     */
+    /** Texto em uma única linha. O lexema mantém aspas e escapes; o valor, não. */
     private function text(): Token
     {
         [$line, $column] = [$this->line, $this->column];
@@ -195,11 +167,7 @@ final class Lexer
         throw new LexicalException('texto não terminado: faltou fechar as aspas', $line, $column);
     }
 
-    /**
-     * Operador ou delimitador, sempre o mais longo possível (">=" antes de ">").
-     *
-     * @return Token
-     */
+    /** Operador ou delimitador, sempre o mais longo possível (">=" antes de ">"). */
     private function symbol(): Token
     {
         [$line, $column] = [$this->line, $this->column];
@@ -221,14 +189,6 @@ final class Lexer
         throw new LexicalException($this->describeInvalid($char), $line, $column);
     }
 
-    /**
-     * Descrição de um caractere que não inicia nenhum token, com dica nos
-     * enganos comuns.
-     *
-     * @param string $char Caractere encontrado.
-     *
-     * @return string
-     */
     private function describeInvalid(string $char): string
     {
         $hint = match ($char) {
@@ -245,11 +205,6 @@ final class Lexer
         return sprintf('caractere inválido %s%s', $shown, $hint);
     }
 
-    /**
-     * Descarta espaços, comentários de linha (# ou //) e de bloco.
-     *
-     * @return void
-     */
     private function skipWhitespaceAndComments(): void
     {
         while (!$this->isAtEnd()) {
@@ -270,11 +225,6 @@ final class Lexer
         }
     }
 
-    /**
-     * Descarta um comentário de bloco (sem aninhamento).
-     *
-     * @return void
-     */
     private function skipBlockComment(): void
     {
         [$line, $column] = [$this->line, $this->column];
@@ -293,11 +243,6 @@ final class Lexer
         throw new LexicalException("comentário de bloco não terminado: faltou fechar com '*/'", $line, $column);
     }
 
-    /**
-     * Consome uma sequência de dígitos.
-     *
-     * @return string
-     */
     private function digits(): string
     {
         $digits = '';
@@ -308,24 +253,13 @@ final class Lexer
         return $digits;
     }
 
-    /**
-     * Indica se o caractere atual é um ponto seguido de dígito. Sem dígito
-     * depois, o ponto é o delimitador de "Api.endpoint".
-     *
-     * @return bool
-     */
+    /** Ponto seguido de dígito; sem o dígito, o ponto é o delimitador de "Api.endpoint". */
     private function startsFraction(): bool
     {
         return $this->peek() === '.' && $this->isDigit($this->peek(1));
     }
 
-    /**
-     * @param string $source Texto a verificar.
-     *
-     * @return void
-     *
-     * @throws LexicalException na posição do primeiro byte inválido.
-     */
+    /** @throws LexicalException na posição do primeiro byte inválido */
     private function assertUtf8(string $source): void
     {
         foreach (explode("\n", $source) as $index => $text) {
@@ -342,31 +276,17 @@ final class Lexer
         }
     }
 
-    /**
-     * @return bool
-     */
     private function isAtEnd(): bool
     {
         return $this->position >= count($this->chars);
     }
 
-    /**
-     * Caractere à frente sem consumir, ou '' depois do fim.
-     *
-     * @param int $offset Distância do caractere atual.
-     *
-     * @return string
-     */
+    /** Caractere à frente sem consumir, ou '' depois do fim. */
     private function peek(int $offset = 0): string
     {
         return $this->chars[$this->position + $offset] ?? '';
     }
 
-    /**
-     * Consome o caractere atual e atualiza linha e coluna.
-     *
-     * @return string
-     */
     private function advance(): string
     {
         $char = $this->chars[$this->position++];
@@ -381,31 +301,16 @@ final class Lexer
         return $char;
     }
 
-    /**
-     * @param string $char Caractere ou ''.
-     *
-     * @return bool
-     */
     private function isLetter(string $char): bool
     {
         return preg_match('/^[A-Za-z_]$/D', $char) === 1;
     }
 
-    /**
-     * @param string $char Caractere ou ''.
-     *
-     * @return bool
-     */
     private function isDigit(string $char): bool
     {
         return preg_match('/^[0-9]$/D', $char) === 1;
     }
 
-    /**
-     * @param string $char Caractere ou ''.
-     *
-     * @return bool
-     */
     private function isLetterOrDigit(string $char): bool
     {
         return $this->isLetter($char) || $this->isDigit($char);
