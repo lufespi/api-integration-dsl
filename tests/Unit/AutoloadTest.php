@@ -12,6 +12,9 @@ use PHPUnit\Framework\TestCase;
  * Garante que o mapeamento PSR-4 declarado no composer.json está ativo,
  * para que as classes de Lexer, Parser, Ast e Generator sejam encontradas
  * assim que forem criadas em src/.
+ *
+ * @author lufespi
+ * @since 2026-11-17
  */
 final class AutoloadTest extends TestCase
 {

@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Parser;
 
+/**
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class SyntaxError
 {
     public function __construct(

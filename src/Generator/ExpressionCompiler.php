@@ -20,6 +20,9 @@ use App\Ast\Expression\UnaryOperator;
  * Cada nó vira uma chamada de função ou uma expressão entre parênteses, o que
  * preserva a precedência e a associatividade da árvore. Nenhum texto da AST é
  * concatenado como código: literais e nomes são emitidos com var_export().
+ *
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class ExpressionCompiler
 {

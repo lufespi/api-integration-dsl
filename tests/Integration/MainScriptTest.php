@@ -10,6 +10,9 @@ use PHPUnit\Framework\TestCase;
 /**
  * Executa main.php em processo separado. O PHP gerado só é validado com "php -l".
  * Cada teste usa uma entrada de nome único e remove o .php gravado em output/.
+ *
+ * @author lufespi
+ * @since 2026-11-17
  */
 final class MainScriptTest extends TestCase
 {

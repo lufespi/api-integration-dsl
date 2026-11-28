@@ -16,6 +16,9 @@ use Tests\Unit\Generator\Support\GeneratedScript;
  * Os exemplos de examples/valid/ geram PHP válido. As funções de condição,
  * mapeamento e cabeçalhos são executadas com registros simulados, nunca contra
  * as URLs de exemplo.
+ *
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class ExamplesGenerationTest extends TestCase
 {

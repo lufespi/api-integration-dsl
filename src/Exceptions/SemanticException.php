@@ -7,7 +7,12 @@ namespace App\Exceptions;
 use App\Semantic\SemanticError;
 use InvalidArgumentException;
 
-/** Reúne todos os erros semânticos, ordenados por posição; a posição exposta é a do primeiro. */
+/**
+ * Reúne todos os erros semânticos, ordenados por posição; a posição exposta é a do primeiro.
+ *
+ * @author lufespi
+ * @since 2026-11-28
+ */
 final class SemanticException extends CompilerException
 {
     /** @var list<SemanticError> */

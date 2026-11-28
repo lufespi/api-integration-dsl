@@ -11,6 +11,9 @@ use stdClass;
 /**
  * Script gerado, gravado em diretório temporário e executado em processo separado,
  * pois declara funções globais e chama exit().
+ *
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class GeneratedScript
 {

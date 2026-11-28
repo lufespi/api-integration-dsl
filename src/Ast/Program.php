@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Ast;
 
-/** Raiz da AST, com as declarações na ordem do fonte (produção programa). */
+/**
+ * Raiz da AST, com as declarações na ordem do fonte (produção programa).
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class Program implements Node
 {
     /**

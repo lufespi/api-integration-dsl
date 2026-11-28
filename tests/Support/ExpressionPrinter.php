@@ -12,7 +12,12 @@ use App\Ast\Expression\Literal;
 use App\Ast\Expression\UnaryExpression;
 use LogicException;
 
-/** Imprime a expressão totalmente parentizada, ex.: "a + b * c" → "(a + (b * c))". */
+/**
+ * Imprime a expressão totalmente parentizada, ex.: "a + b * c" → "(a + (b * c))".
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final class ExpressionPrinter
 {
     public static function print(Expression $expression): string

@@ -19,6 +19,9 @@ use PHPUnit\Framework\TestCase;
 /**
  * Cada regra semântica (S1–S13) com mensagem, linha e coluna. As posições esperadas
  * são calculadas a partir do texto do programa de teste (positionOf).
+ *
+ * @author lufespi
+ * @since 2026-11-28
  */
 final class AnalyzerTest extends TestCase
 {

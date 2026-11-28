@@ -15,7 +15,12 @@ use Tests\Unit\Generator\Support\Ast;
 use Tests\Unit\Generator\Support\GeneratedScript;
 use Tests\Unit\Generator\Support\LocalHttpServer;
 
-/** Scripts gerados executados contra um servidor HTTP local (127.0.0.1) no papel das APIs. */
+/**
+ * Scripts gerados executados contra um servidor HTTP local (127.0.0.1) no papel das APIs.
+ *
+ * @author lufespi
+ * @since 2026-11-26
+ */
 final class GeneratedCodeTest extends TestCase
 {
     private static LocalHttpServer $server;

@@ -16,6 +16,9 @@ use Throwable;
  * grava output/<nome>.php. Em caso de falha nada é gravado, e a saída de uma
  * compilação anterior é removida. Streams e diretório de saída são injetáveis
  * para os testes.
+ *
+ * @author lufespi
+ * @since 2026-11-17
  */
 final class Application
 {

@@ -9,6 +9,9 @@ use App\Exceptions\LexicalException;
 /**
  * Analisador léxico escrito à mão: o primeiro caractere decide o tipo do token.
  * Linha e coluna começam em 1 e contam caracteres UTF-8, não bytes.
+ *
+ * @author Comassetto
+ * @since 2026-11-24
  */
 final class Lexer
 {

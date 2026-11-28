@@ -8,6 +8,9 @@ namespace App\Lexer;
  * Token do Lexer. $lexeme é o texto exato do fonte (com aspas nos textos);
  * $value é o valor dos literais (string sem aspas e com escapes resolvidos, int
  * ou float) e null nos demais tokens.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final readonly class Token
 {

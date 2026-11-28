@@ -24,6 +24,9 @@ use InvalidArgumentException;
  * Analisador semântico: verifica sobre a AST as regras que a GLC não expressa
  * (regras S1–S13 de docs/grammar.md). Percorre o programa inteiro e lança todos
  * os erros juntos em uma SemanticException, ordenados por posição no fonte.
+ *
+ * @author lufespi
+ * @since 2026-11-28
  */
 final class Analyzer
 {

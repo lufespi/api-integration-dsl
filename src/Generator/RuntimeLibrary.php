@@ -11,6 +11,9 @@ namespace App\Generator;
  * As funções usam o prefixo "dsl_". Falhas operacionais viram DslRuntimeException
  * e são reportadas por dsl_run_integration() sem exibir valores de cabeçalhos ou
  * de variáveis de ambiente.
+ *
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class RuntimeLibrary
 {

@@ -26,6 +26,9 @@ use App\Ast\Program;
 /**
  * Atalhos para montar ASTs à mão nos testes do Gerador, sem Lexer nem Parser.
  * Posições são sempre linha 1, coluna 1, exceto quando o teste constrói o nó.
+ *
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class Ast
 {

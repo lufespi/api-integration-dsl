@@ -9,6 +9,9 @@ namespace App\Ast;
  *
  * Todos os nós, exceto Program, guardam linha e coluna (a partir de 1): a do
  * operador em expressões unárias e binárias e, nos demais, a do primeiro token.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 interface Node
 {

@@ -9,6 +9,9 @@ use RuntimeException;
 /**
  * Servidor embutido do PHP ("php -S") em 127.0.0.1 que substitui as APIs nos testes.
  * Rotas não configuradas respondem 201 com {"ok":true}.
+ *
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class LocalHttpServer
 {

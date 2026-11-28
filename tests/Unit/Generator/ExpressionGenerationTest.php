@@ -16,7 +16,12 @@ use stdClass;
 use Tests\Unit\Generator\Support\Ast;
 use Tests\Unit\Generator\Support\GeneratedScript;
 
-/** Tradução de expressões: o código gerado é executado com o runtime real sobre registros simulados. */
+/**
+ * Tradução de expressões: o código gerado é executado com o runtime real sobre registros simulados.
+ *
+ * @author lufespi
+ * @since 2026-11-26
+ */
 final class ExpressionGenerationTest extends TestCase
 {
     /** Alias usado nas referências de campo dos testes. */

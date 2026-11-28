@@ -7,7 +7,12 @@ namespace App\Exceptions;
 use App\Parser\SyntaxError;
 use InvalidArgumentException;
 
-/** Reúne todos os erros sintáticos, em ordem de ocorrência; a posição exposta é a do primeiro. */
+/**
+ * Reúne todos os erros sintáticos, em ordem de ocorrência; a posição exposta é a do primeiro.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final class SyntaxException extends CompilerException
 {
     /** @var list<SyntaxError> */

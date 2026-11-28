@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Ast;
 
-/** Referência `Api.endpoint` das cláusulas `from` e `to` (produção ref_endpoint). */
+/**
+ * Referência `Api.endpoint` das cláusulas `from` e `to` (produção ref_endpoint).
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class EndpointRef implements Node
 {
     public function __construct(

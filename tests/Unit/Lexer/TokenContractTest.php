@@ -13,6 +13,9 @@ use PHPUnit\Framework\TestCase;
  * Testes do contrato de tokens compartilhado entre Lexer e Parser
  * (src/Lexer/Token.php e src/Lexer/TokenType.php). Não testam o Lexer, que
  * é outro componente.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final class TokenContractTest extends TestCase
 {

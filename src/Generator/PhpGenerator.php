@@ -20,6 +20,9 @@ use App\Ast\Program;
  *
  * Parte das verificações repete o Analyzer de forma defensiva, para ASTs que não
  * passaram por ele; as demais são restrições próprias da geração.
+ *
+ * @author lufespi
+ * @since 2026-11-26
  */
 final class PhpGenerator
 {

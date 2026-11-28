@@ -35,6 +35,9 @@ use LogicException;
  * docblock; a escolha da produção olha apenas o token atual. Em caso de erro,
  * o Parser se recupera em modo pânico (synchronize()) e, ao final, lança todos
  * os erros juntos em uma SyntaxException.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final class Parser
 {

@@ -26,7 +26,12 @@ use RuntimeException;
 use Tests\Unit\Generator\Support\Ast;
 use Tests\Unit\Generator\Support\GeneratedScript;
 
-/** Estrutura do código gerado e verificações do PhpGenerator, com ASTs montadas à mão. */
+/**
+ * Estrutura do código gerado e verificações do PhpGenerator, com ASTs montadas à mão.
+ *
+ * @author lufespi
+ * @since 2026-11-26
+ */
 final class PhpGeneratorTest extends TestCase
 {
     private function generate(Program $program): string

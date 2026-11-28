@@ -12,6 +12,9 @@ use Throwable;
  *
  * getSourceLine()/getSourceColumn() indicam a posição no arquivo .dsl; os nomes
  * evitam conflito com Exception::getLine(), que é final.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 abstract class CompilerException extends RuntimeException
 {

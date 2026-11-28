@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Semantic;
 
+/**
+ * @author lufespi
+ * @since 2026-11-28
+ */
 final readonly class SemanticError
 {
     public function __construct(

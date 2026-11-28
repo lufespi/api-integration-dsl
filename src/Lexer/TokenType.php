@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Lexer;
 
-/** Terminais da gramática. Palavras reservadas diferenciam maiúsculas de minúsculas. */
+/**
+ * Terminais da gramática. Palavras reservadas diferenciam maiúsculas de minúsculas.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 enum TokenType: string
 {
     // Palavras reservadas.

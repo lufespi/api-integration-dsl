@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Ast;
 
-/** Tipo declarado em um campo do bloco `map`; orienta a conversão feita pelo Generator. */
+/**
+ * Tipo declarado em um campo do bloco `map`; orienta a conversão feita pelo Generator.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 enum DataType: string
 {
     case String = 'string';

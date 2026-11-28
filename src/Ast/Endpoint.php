@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Ast;
 
-/** Declaração `endpoint` (produção decl_endpoint). O caminho sempre começa por "/". */
+/**
+ * Declaração `endpoint` (produção decl_endpoint). O caminho sempre começa por "/".
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class Endpoint implements Node
 {
     public function __construct(

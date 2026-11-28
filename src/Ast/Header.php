@@ -6,7 +6,12 @@ namespace App\Ast;
 
 use App\Ast\Expression\Expression;
 
-/** Declaração `header "Nome" = expressão;` (produção decl_header). */
+/**
+ * Declaração `header "Nome" = expressão;` (produção decl_header).
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class Header implements Node
 {
     public function __construct(

@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Ast\Expression;
 
-/** Chamada de função embutida, como `env("CRM_TOKEN")`. */
+/**
+ * Chamada de função embutida, como `env("CRM_TOKEN")`.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class FunctionCall implements Expression
 {
     /** @param list<Expression> $arguments */

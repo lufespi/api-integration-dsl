@@ -16,6 +16,9 @@ use RuntimeException;
 /**
  * Argumentos, pipeline completo, gravação e códigos de saída da CLI. Cada teste usa
  * um diretório de saída temporário; o PHP gerado só é validado com "php -l".
+ *
+ * @author lufespi
+ * @since 2026-11-17
  */
 final class ApplicationTest extends TestCase
 {

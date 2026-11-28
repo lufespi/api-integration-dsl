@@ -19,6 +19,9 @@ use PHPUnit\Framework\TestCase;
  * Testes do Analisador Sintático com programas inválidos: mensagem, linha e
  * coluna de cada erro sintático, recuperação em modo pânico e validação do
  * contrato de tokens recebido do Lexer.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final class ParserErrorTest extends TestCase
 {

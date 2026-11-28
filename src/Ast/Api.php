@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Ast;
 
-/** Declaração `api` (produção decl_api). O endereço-base não tem barra final. */
+/**
+ * Declaração `api` (produção decl_api). O endereço-base não tem barra final.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class Api implements Node
 {
     /**

@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 namespace App\Ast\Expression;
 
-/** Operação binária. A forma da árvore já reflete precedência e associatividade. */
+/**
+ * Operação binária. A forma da árvore já reflete precedência e associatividade.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class BinaryExpression implements Expression
 {
     public function __construct(

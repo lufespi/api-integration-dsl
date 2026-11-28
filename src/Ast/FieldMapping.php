@@ -6,7 +6,12 @@ namespace App\Ast;
 
 use App\Ast\Expression\Expression;
 
-/** Campo do bloco `map`: `nome: tipo = expressão;` (produção mapeamento). */
+/**
+ * Campo do bloco `map`: `nome: tipo = expressão;` (produção mapeamento).
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class FieldMapping implements Node
 {
     public function __construct(

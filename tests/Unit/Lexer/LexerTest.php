@@ -14,6 +14,9 @@ use PHPUnit\Framework\TestCase;
 /**
  * Testes do Analisador Léxico: tokens reconhecidos, valores, posições, erros
  * e os programas de examples/.
+ *
+ * @author Comassetto
+ * @since 2026-11-24
  */
 final class LexerTest extends TestCase
 {

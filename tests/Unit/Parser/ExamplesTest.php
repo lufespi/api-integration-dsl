@@ -13,6 +13,9 @@ use PHPUnit\Framework\TestCase;
 /**
  * Exemplos válidos são aceitos; os de examples/invalid/syntactic/ são rejeitados
  * exatamente com os erros das suas linhas "// Erro esperado: ...".
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final class ExamplesTest extends TestCase
 {

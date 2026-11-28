@@ -22,6 +22,9 @@ use Tests\Support\ExpressionPrinter;
 /**
  * Programas válidos: estrutura da AST, cláusulas opcionais, literais, precedência
  * e associatividade.
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
  */
 final class ParserTest extends TestCase
 {

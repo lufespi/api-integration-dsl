@@ -6,7 +6,12 @@ namespace App\Ast;
 
 use App\Ast\Expression\Expression;
 
-/** Declaração `integration` (produção decl_integracao). */
+/**
+ * Declaração `integration` (produção decl_integracao).
+ *
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 final readonly class Integration implements Node
 {
     /** @param list<FieldMapping> $mappings vazio quando não há `map` (o registro é enviado inteiro) */

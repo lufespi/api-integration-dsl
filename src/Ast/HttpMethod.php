@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Ast;
 
+/**
+ * @author paulacsilva
+ * @since 2026-11-20
+ */
 enum HttpMethod: string
 {
     case Get = 'GET';
