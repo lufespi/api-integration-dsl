@@ -5,10 +5,10 @@ e compilá-las para código PHP executável.
 
 Projeto acadêmico da disciplina de **Linguagens Formais e Compiladores - UNISC**.
 
-> **Estado atual:** fundação do projeto (estrutura, CLI, testes e documentação),
-> gramática, Lexer, Parser, AST e Gerador de código PHP implementados
-> ([docs/generator.md](docs/generator.md)). O pipeline ainda não está
-> integrado à CLI. Ver
+> **Estado atual:** compilador funcional. Lexer, Parser, AST, Analisador
+> semântico ([docs/semantic-analysis.md](docs/semantic-analysis.md)) e Gerador
+> de código PHP ([docs/generator.md](docs/generator.md)) estão integrados à
+> CLI, que grava o PHP gerado em `output/`. Ver
 > [Estado de implementação](#estado-de-implementação).
 
 ## Objetivo acadêmico
@@ -19,6 +19,8 @@ disciplina:
 - **análise léxica**: reconhecimento de tokens a partir do texto-fonte;
 - **análise sintática**: validação por uma gramática livre de contexto (GLC)
   e construção de uma árvore sintática abstrata (AST);
+- **análise semântica**: verificação de nomes, referências, alias e funções
+  sobre a AST;
 - **geração de código**: tradução da AST para código PHP.
 
 ## A DSL em resumo
@@ -63,7 +65,7 @@ sintáticos) está em [docs/grammar.md](docs/grammar.md); exemplos em
 ## Arquitetura
 
 ```text
-Arquivo .dsl -> Lexer -> Tokens -> Parser -> AST -> PhpGenerator -> Arquivo PHP
+Arquivo .dsl -> Lexer -> Tokens -> Parser -> AST -> Analyzer -> PhpGenerator -> Arquivo PHP
 ```
 
 | Componente | Responsabilidade |
@@ -71,6 +73,7 @@ Arquivo .dsl -> Lexer -> Tokens -> Parser -> AST -> PhpGenerator -> Arquivo PHP
 | Lexer | Texto-fonte → tokens; erros léxicos |
 | Parser | Tokens → AST; validação da gramática; erros sintáticos |
 | AST | Representação estrutural de APIs, endpoints e integrações |
+| Analyzer | AST → AST verificada; erros semânticos (nomes, referências, alias, funções) |
 | Generator | AST → código PHP (cURL + JSON) |
 | CLI | Coordena o pipeline e apresenta mensagens ao usuário |
 
@@ -171,16 +174,45 @@ docker compose run --rm app php main.php <arquivo.dsl>
 docker compose run --rm app php main.php --help
 ```
 
+A CLI executa o pipeline completo (Lexer → Parser → Analyzer → PhpGenerator) e
+grava o resultado em `output/`, com o nome do arquivo de entrada:
+
+```text
+$ docker compose run --rm app php main.php examples/valid/exemplo1.dsl
+Compilação concluída: examples/valid/exemplo1.dsl -> output/exemplo1.php
+```
+
+- A compilação **não executa** o PHP gerado e **não faz** requisições HTTP.
+- Erros léxicos, sintáticos, semânticos e de geração são exibidos em stderr,
+  com linha e coluna; nesse caso nenhum arquivo é gerado, e um
+  `output/<nome>.php` deixado por uma compilação anterior é removido, para não
+  ser confundido com o resultado atual.
+- O arquivo é gravado de forma atômica (temporário + renomeação): uma falha de
+  escrita nunca deixa um `.php` parcial.
+
+```text
+$ docker compose run --rm app php main.php examples/invalid/semantic/01-api-inexistente.dsl
+Erro semântico na linha 13, coluna 8: API 'Crm' não declarada na cláusula 'to' da integração 'copiarUsuarios'; APIs declaradas: Users
+Nenhum arquivo PHP foi gerado.
+```
+
 | Código de saída | Significado |
 |---|---|
-| 0 | Sucesso ou ajuda exibida |
-| 1 | Erro de compilação (léxico/sintático) — reservado |
+| 0 | Compilação concluída ou ajuda exibida |
+| 1 | Erro de compilação (léxico, sintático, semântico ou de geração) ou falha de leitura/escrita |
 | 2 | Uso incorreto ou arquivo de entrada inválido |
-| 3 | Funcionalidade ainda não integrada |
 
-Enquanto o pipeline não estiver integrado, a CLI valida o arquivo de entrada e
-informa que a compilação ainda não está disponível (código 3). Nenhum arquivo é
-gerado.
+O script gerado é executado à parte, quando desejado, com as variáveis de
+ambiente usadas em `env("...")` (ver [docs/generator.md](docs/generator.md)):
+
+```bash
+CRM_TOKEN=... php output/exemplo3.php
+```
+
+**Funções embutidas:** apenas `env("NOME")`, que lê uma variável de ambiente
+no momento da execução do script gerado. Recebe exatamente um argumento, que
+deve ser um texto literal com um nome de variável válido (letras, dígitos e
+`_`, sem começar por dígito); qualquer outra função é erro semântico.
 
 ## Testes
 
@@ -240,12 +272,14 @@ api-integration-dsl/
 │   ├── valid/               programas .dsl válidos
 │   └── invalid/
 │       ├── lexical/         programas com erros léxicos
-│       └── syntactic/       programas com erros sintáticos
+│       ├── syntactic/       programas com erros sintáticos
+│       └── semantic/        programas com erros semânticos
 ├── src/
 │   ├── Cli/                 CLI (App\Cli\Application)
 │   ├── Lexer/               analisador léxico
 │   ├── Parser/              analisador sintático
 │   ├── Ast/                 nós da AST
+│   ├── Semantic/            analisador semântico
 │   ├── Generator/           gerador de código PHP
 │   └── Exceptions/          exceções do compilador
 ├── tests/
@@ -276,10 +310,12 @@ api-integration-dsl/
 | AST | ✅ Implementada (`src/Ast`); consumida pelo Generator sem alterações |
 | Contrato de tokens (`Token`, `TokenType`) | ✅ Pronto (`src/Lexer`) |
 | Lexer (escrito à mão, erros léxicos) | ✅ Pronto (`src/Lexer`, [docs/tokens.md](docs/tokens.md)) |
+| Analisador semântico (`Analyzer`, erros semânticos) | ✅ Implementado por Pedro Augusto (`src/Semantic`, [docs/semantic-analysis.md](docs/semantic-analysis.md)); integrado ao pipeline |
 | Generator (AST → PHP com cURL, `when`, `map`, cabeçalhos) | ✅ Pronto, com correções pós-code review (`src/Generator`, [docs/generator.md](docs/generator.md)); decisões provisórias aguardam o grupo |
-| Integração do pipeline na CLI | ⏳ Não iniciado |
+| Integração do pipeline na CLI (`output/<nome>.php`, códigos 0/1/2) | ✅ Pronta (`src/Cli`) |
 | Exemplos `.dsl` válidos e com erros sintáticos | ✅ Prontos (`examples/valid`, `examples/invalid/syntactic`) |
 | Exemplos `.dsl` com erros léxicos | ✅ Prontos (`examples/invalid/lexical`) |
+| Exemplos `.dsl` com erros semânticos | ✅ Prontos (`examples/invalid/semantic`) |
 
 ## Equipe e responsabilidades
 

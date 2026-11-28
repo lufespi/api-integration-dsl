@@ -8,7 +8,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Base das exceções do compilador (erros léxicos e sintáticos).
+ * Base das exceções do compilador (erros léxicos, sintáticos, semânticos e de geração).
  *
  * Carrega, opcionalmente, a posição do erro no arquivo-fonte .dsl. Os nomes
  * getSourceLine()/getSourceColumn() evitam conflito com Exception::getLine(),
@@ -17,7 +17,9 @@ use Throwable;
  * Hierarquia (docs/architecture.md, seção 4):
  *   CompilerException
  *   ├── LexicalException   (a cargo do Analisador Léxico)
- *   └── SyntaxException
+ *   ├── SyntaxException
+ *   ├── SemanticException  (a cargo do Analisador Semântico)
+ *   └── GenerationException (App\Generator, a cargo do Gerador de código)
  */
 abstract class CompilerException extends RuntimeException
 {
