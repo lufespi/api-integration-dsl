@@ -25,7 +25,7 @@ use InvalidArgumentException;
  * (regras S1–S13 de docs/grammar.md). Percorre o programa inteiro e lança todos
  * os erros juntos em uma SemanticException, ordenados por posição no fonte.
  *
- * @author lufespi
+ * @author pedro.augusto
  * @since 2026-11-28
  */
 final class Analyzer

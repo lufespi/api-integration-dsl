@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace App\Semantic;
 
 /**
- * @author lufespi
+ * @author pedro.augusto
  * @since 2026-11-28
  */
 final readonly class SemanticError

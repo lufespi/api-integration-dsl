@@ -10,7 +10,7 @@ use InvalidArgumentException;
 /**
  * Reúne todos os erros semânticos, ordenados por posição; a posição exposta é a do primeiro.
  *
- * @author lufespi
+ * @author pedro.augusto
  * @since 2026-11-28
  */
 final class SemanticException extends CompilerException

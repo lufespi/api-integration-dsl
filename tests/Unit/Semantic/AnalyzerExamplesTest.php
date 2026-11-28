@@ -15,7 +15,7 @@ use PHPUnit\Framework\TestCase;
  * Exemplos válidos passam pelo Analyzer; os de examples/invalid/semantic/ são aceitos
  * pelo Parser e rejeitados exatamente com os erros das linhas "// Erro esperado: ...".
  *
- * @author lufespi
+ * @author pedro.augusto
  * @since 2026-11-28
  */
 final class AnalyzerExamplesTest extends TestCase
