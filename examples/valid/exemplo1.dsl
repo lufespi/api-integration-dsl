@@ -1,7 +1,7 @@
 // Exemplo 1: integração mínima.
 // Lista os usuários da API de origem e envia cada registro, sem
 // transformação, para o CRM. Corresponde à AST de exemplo de
-// docs/ast-contract.md.
+// docs/grammar.md (seção 10).
 
 api Users {
     base "https://users.example.com/api";

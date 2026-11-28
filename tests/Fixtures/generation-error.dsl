@@ -1,6 +1,6 @@
 // Fixture dos testes da CLI: programa léxica, sintática e semanticamente
 // válido que o Gerador rejeita, porque a origem de uma integração deve ser um
-// endpoint GET nesta versão (restrição da geração, docs/generator.md).
+// endpoint GET nesta versão (restrição da geração).
 // Erro esperado: Erro de geração na linha 17, coluna 10: o endpoint 'Pedidos.criarPedido' usa POST, que não é suportado como origem; use GET
 
 api Pedidos {
