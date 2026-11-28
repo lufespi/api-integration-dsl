@@ -551,6 +551,32 @@ final class ExpressionGenerationTest extends TestCase
     }
 
     /**
+     * Decimais viram texto sem perder dígitos (a conversão padrão do PHP
+     * arredonda para 14 algarismos) e sem alterar a configuração do PHP.
+     */
+    public function testFloatToTextPreservesAllDigits(): void
+    {
+        $result = GeneratedScript::forExpression('null')->call(<<<'PHP'
+            $before = ini_get('precision');
+            $record = json_decode('{"f":1234567890.123456}');
+
+            return [
+                dsl_convert(dsl_field($record, ['f']), 'string', 'preco'),
+                dsl_add('v=', dsl_field($record, ['f'])),
+                dsl_text(0.1),
+                dsl_text(100.0),
+                dsl_text(1.5),
+                ini_get('precision') === $before,
+            ];
+            PHP);
+
+        self::assertSame(
+            ['1234567890.123456', 'v=1234567890.123456', '0.1', '100', '1.5', true],
+            $result['value'] ?? $result,
+        );
+    }
+
+    /**
      * FIX-03: dsl_safe_url() oculta toda a query string e preserva o resto.
      */
     public function testSafeUrlRedactsTheWholeQueryString(): void
