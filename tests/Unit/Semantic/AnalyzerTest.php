@@ -7,6 +7,7 @@ namespace Tests\Unit\Semantic;
 use App\Ast\Program;
 use App\Exceptions\CompilerException;
 use App\Exceptions\SemanticException;
+use App\Generator\ExpressionCompiler;
 use App\Lexer\Lexer;
 use App\Parser\Parser;
 use App\Semantic\Analyzer;
@@ -203,11 +204,11 @@ final class AnalyzerTest extends TestCase
             '    to Crm.createContact;',
             '    when user.age >= 18 && !user.blocked;',
             '    map {',
-            '        name: string = upper(user.name);',
+            '        name: string = user.name;',
             '        whole: string = user;',
             '        kind: string = user.from;',
             '        origin: string = "users";',
-            '        at: string = now();',
+            '        token: string = env("SYNC_TOKEN");',
             '    }',
             '}',
         );
@@ -670,15 +671,67 @@ final class AnalyzerTest extends TestCase
             [self::expectedError(
                 $source,
                 'capitalize',
-                "função desconhecida 'capitalize'; funções disponíveis: env, lower, now, upper",
+                "função desconhecida 'capitalize'; funções disponíveis: env",
             )],
             self::errorsOf($source),
         );
     }
 
     /**
-     * Número de argumentos diferente do esperado (com singular e plural
-     * corretos); chamadas corretas não geram erro.
+     * Por padrão, env() é a única função embutida: upper(), lower() e now()
+     * não são suportadas pelo Generator e, portanto, são desconhecidas.
+     *
+     * @param string $call Chamada de função usada no "map".
+     * @param string $name Nome da função.
+     *
+     * @return void
+     */
+    #[DataProvider('unsupportedFunctions')]
+    public function testFunctionsWithoutGeneratorSupportAreUnknownByDefault(string $call, string $name): void
+    {
+        $source = self::programWithApis(
+            'integration sync {',
+            '    from Users.listUsers as user;',
+            '    to Crm.createContact;',
+            '    map {',
+            '        value: string = ' . $call . ';',
+            '    }',
+            '}',
+        );
+
+        self::assertSame(
+            [self::expectedError($source, $call, sprintf("função desconhecida '%s'; funções disponíveis: env", $name))],
+            self::errorsOf($source),
+        );
+    }
+
+    /**
+     * Fornece chamadas de funções sem tradução no Generator.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function unsupportedFunctions(): iterable
+    {
+        yield 'upper' => ['upper(user.name)', 'upper'];
+        yield 'lower' => ['lower(user.name)', 'lower'];
+        yield 'now' => ['now()', 'now'];
+    }
+
+    /**
+     * As funções-padrão do Analyzer são exatamente as que o Generator sabe
+     * traduzir: uma função aceita aqui nunca falha só na geração.
+     *
+     * @return void
+     */
+    public function testDefaultFunctionsMatchGeneratorFunctions(): void
+    {
+        self::assertSame(ExpressionCompiler::FUNCTIONS, array_keys(Analyzer::DEFAULT_FUNCTIONS));
+        self::assertSame(['env' => 1], Analyzer::DEFAULT_FUNCTIONS);
+    }
+
+    /**
+     * Número de argumentos de env() diferente de 1 (com plural correto);
+     * chamadas corretas, em "map" e em cabeçalho, não geram erro.
      *
      * @return void
      */
@@ -691,9 +744,7 @@ final class AnalyzerTest extends TestCase
             '    map {',
             '        a: string = env();',
             '        b: string = env("A", "B");',
-            '        c: string = now(1);',
-            '        d: string = upper(user.name);',
-            '        e: string = now();',
+            '        c: string = env("OK");',
             '    }',
             '}',
         );
@@ -702,10 +753,154 @@ final class AnalyzerTest extends TestCase
             [
                 self::expectedError($source, 'env()', "a função 'env' espera 1 argumento, mas recebeu 0 argumentos"),
                 self::expectedError($source, 'env("A"', "a função 'env' espera 1 argumento, mas recebeu 2 argumentos"),
-                self::expectedError($source, 'now(1)', "a função 'now' espera 0 argumentos, mas recebeu 1 argumento"),
             ],
             self::errorsOf($source),
         );
+    }
+
+    /**
+     * Com uma tabela personalizada, a mensagem de aridade usa o singular
+     * quando a função recebe exatamente 1 argumento.
+     *
+     * @return void
+     */
+    public function testWrongArityMessageUsesSingular(): void
+    {
+        $source = self::programWithApis(
+            'integration sync {',
+            '    from Users.listUsers as user;',
+            '    to Crm.createContact;',
+            '    map {',
+            '        at: string = stamp(1);',
+            '    }',
+            '}',
+        );
+
+        self::assertSame(
+            [self::expectedError($source, 'stamp(1)', "a função 'stamp' espera 0 argumentos, mas recebeu 1 argumento")],
+            self::errorsOf($source, new Analyzer(['env' => 1, 'stamp' => 0])),
+        );
+    }
+
+    /**
+     * O argumento de env() deve ser um texto literal: campos, números e
+     * expressões são rejeitados, apontando a chamada.
+     *
+     * @param string $argument Argumento passado a env().
+     *
+     * @return void
+     */
+    #[DataProvider('nonLiteralEnvArguments')]
+    public function testEnvArgumentMustBeAStringLiteral(string $argument): void
+    {
+        $source = self::programWithApis(
+            'integration sync {',
+            '    from Users.listUsers as user;',
+            '    to Crm.createContact;',
+            '    map {',
+            '        token: string = env(' . $argument . ');',
+            '    }',
+            '}',
+        );
+
+        self::assertSame(
+            [self::expectedError(
+                $source,
+                'env(' . $argument,
+                "o argumento de 'env' deve ser um texto literal com o nome da variável, ex.: env(\"API_TOKEN\")",
+            )],
+            self::errorsOf($source),
+        );
+    }
+
+    /**
+     * Fornece argumentos de env() que não são texto literal.
+     *
+     * @return iterable<string, array{string}>
+     */
+    public static function nonLiteralEnvArguments(): iterable
+    {
+        yield 'campo do registro' => ['user.tokenName'];
+        yield 'número' => ['42'];
+        yield 'booleano' => ['true'];
+        yield 'nulo' => ['null'];
+        yield 'concatenação' => ['"API_" + "TOKEN"'];
+        yield 'chamada aninhada' => ['env("NAME")'];
+    }
+
+    /**
+     * O texto de env() deve ser um nome de variável de ambiente válido; o
+     * erro aponta o literal.
+     *
+     * @param string $name    Texto literal passado a env(), já com aspas.
+     * @param string $printed Nome como aparece na mensagem.
+     *
+     * @return void
+     */
+    #[DataProvider('invalidEnvNames')]
+    public function testEnvNameMustBeValid(string $name, string $printed): void
+    {
+        $source = self::programWithApis(
+            'api Shop {',
+            '    base "https://shop.example.com";',
+            '    header "X-Token" = env(' . $name . ');',
+            '    endpoint list GET "/items";',
+            '}',
+            '',
+            'integration sync {',
+            '    from Shop.list;',
+            '    to Crm.createContact;',
+            '}',
+        );
+
+        self::assertSame(
+            [self::expectedError(
+                $source,
+                $name . ')',
+                sprintf(
+                    'nome de variável de ambiente inválido em env(): "%s"; use letras, dígitos e _, sem começar por dígito',
+                    $printed,
+                ),
+            )],
+            self::errorsOf($source),
+        );
+    }
+
+    /**
+     * Fornece nomes de variável de ambiente inválidos.
+     *
+     * @return iterable<string, array{string, string}>
+     */
+    public static function invalidEnvNames(): iterable
+    {
+        yield 'vazio' => ['""', ''];
+        yield 'começa com dígito' => ['"1TOKEN"', '1TOKEN'];
+        yield 'hífen' => ['"API-TOKEN"', 'API-TOKEN'];
+        yield 'espaço' => ['"API TOKEN"', 'API TOKEN'];
+        yield 'cifrão' => ['"$HOME"', '$HOME'];
+        yield 'quebra de linha escapada' => ['"A\\nB"', 'A\\nB'];
+    }
+
+    /**
+     * Nomes válidos de variável de ambiente são aceitos.
+     *
+     * @return void
+     */
+    public function testValidEnvNamesAreAccepted(): void
+    {
+        $source = self::programWithApis(
+            'integration sync {',
+            '    from Users.listUsers as user;',
+            '    to Crm.createContact;',
+            '    map {',
+            '        a: string = env("_PRIVATE");',
+            '        b: string = env("api_token_2");',
+            '        c: string = "Bearer " + env("X");',
+            '    }',
+            '}',
+        );
+
+        self::assertNotEmpty(self::runAnalysis($source)->integrations);
     }
 
     /**
@@ -720,7 +915,7 @@ final class AnalyzerTest extends TestCase
             '    from Users.listUsers as user;',
             '    to Crm.createContact;',
             '    map {',
-            '        name: string = upper(person.name);',
+            '        name: string = "x" + person.name;',
             '        flag: bool = !other.flag;',
             '        sum: int = 1 + capitalize(user.age);',
             '    }',
@@ -742,7 +937,7 @@ final class AnalyzerTest extends TestCase
                 self::expectedError(
                     $source,
                     'capitalize',
-                    "função desconhecida 'capitalize'; funções disponíveis: env, lower, now, upper",
+                    "função desconhecida 'capitalize'; funções disponíveis: env",
                 ),
             ],
             self::errorsOf($source),
@@ -811,6 +1006,7 @@ final class AnalyzerTest extends TestCase
         yield 'aridade que não é inteiro' => [['env' => '1']];
         yield 'aridade negativa' => [['env' => -1]];
         yield 'nome vazio' => [['' => 1]];
+        yield 'env com aridade diferente de 1' => [['env' => 2]];
     }
 
     // ------------------------------------------------------------------

@@ -5,7 +5,7 @@
 // chamada de função inexistente.
 // Erro esperado: Erro semântico na linha 14, coluna 5: endpoint 'listarPedidos' já declarado na API 'Loja' (linha 13, coluna 5)
 // Erro esperado: Erro semântico na linha 25, coluna 10: a referência 'order.status' deve começar pelo alias 'pedido' da integração 'faturarPedidos'
-// Erro esperado: Erro semântico na linha 27, coluna 27: função desconhecida 'capitalize'; funções disponíveis: env, lower, now, upper
+// Erro esperado: Erro semântico na linha 27, coluna 27: função desconhecida 'capitalize'; funções disponíveis: env
 
 api Loja {
     base "https://loja.example.com/api";

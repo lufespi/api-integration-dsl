@@ -11,6 +11,8 @@ use App\Ast\Expression\BinaryExpression;
 use App\Ast\Expression\Expression;
 use App\Ast\Expression\FieldReference;
 use App\Ast\Expression\FunctionCall;
+use App\Ast\Expression\Literal;
+use App\Ast\Expression\LiteralType;
 use App\Ast\Expression\UnaryExpression;
 use App\Ast\FieldMapping;
 use App\Ast\Integration;
@@ -34,7 +36,8 @@ use InvalidArgumentException;
  *  - em "when" e "map", todo caminho de campo começa pelo alias declarado em
  *    "from ... as alias"; sem alias, nenhum campo pode ser referenciado;
  *  - cabeçalhos de API não referenciam campos de registro;
- *  - funções chamadas existem e recebem o número certo de argumentos.
+ *  - funções chamadas existem e recebem o número certo de argumentos;
+ *  - env() recebe um texto literal com um nome de variável de ambiente válido.
  *
  * Todos os erros do programa são coletados e lançados juntos em uma
  * SemanticException, ordenados por posição no fonte.
@@ -43,14 +46,15 @@ final class Analyzer
 {
     /**
      * Funções embutidas aceitas por padrão: nome => número de argumentos.
-     * Deve ser mantida alinhada ao que o Generator sabe traduzir para PHP.
+     * Deve ser mantida alinhada ao que o Generator sabe traduzir para PHP
+     * (ExpressionCompiler::FUNCTIONS): nesta versão, apenas env("NOME").
      */
     public const DEFAULT_FUNCTIONS = [
         'env' => 1,
-        'upper' => 1,
-        'lower' => 1,
-        'now' => 0,
     ];
+
+    /** Nome válido de variável de ambiente em env("NOME"), o mesmo aceito pelo Generator. */
+    private const ENV_NAME_PATTERN = '/^[A-Za-z_][A-Za-z0-9_]*$/';
 
     /** @var array<string, int> Funções aceitas: nome => aridade. */
     private readonly array $functions;
@@ -61,7 +65,8 @@ final class Analyzer
     /**
      * @param array<string, int> $functions Funções aceitas: nome => número de argumentos.
      *
-     * @throws InvalidArgumentException se o nome não for texto não vazio ou a aridade não for inteiro >= 0.
+     * @throws InvalidArgumentException se o nome não for texto não vazio, a aridade não for inteiro >= 0
+     *                                  ou env() não tiver exatamente 1 argumento.
      */
     public function __construct(array $functions = self::DEFAULT_FUNCTIONS)
     {
@@ -71,6 +76,10 @@ final class Analyzer
                     'A tabela de funções deve mapear o nome (texto não vazio) para o número de argumentos (inteiro >= 0).',
                 );
             }
+        }
+
+        if (isset($functions['env']) && $functions['env'] !== 1) {
+            throw new InvalidArgumentException('A função env() recebe exatamente 1 argumento.');
         }
 
         $this->functions = $functions;
@@ -427,6 +436,47 @@ final class Analyzer
                 ),
                 $call->line,
                 $call->column,
+            );
+
+            return;
+        }
+
+        if ($call->name === 'env') {
+            $this->checkEnvArgument($call);
+        }
+    }
+
+    /**
+     * Verifica o argumento de env("NOME"): deve ser um texto literal com um
+     * nome de variável de ambiente válido, para que dados do registro nunca
+     * escolham qual variável é lida (mesma regra do Generator).
+     *
+     * @param FunctionCall $call Chamada de env() com exatamente 1 argumento.
+     *
+     * @return void
+     */
+    private function checkEnvArgument(FunctionCall $call): void
+    {
+        $argument = array_values($call->arguments)[0];
+
+        if (!$argument instanceof Literal || $argument->literalType !== LiteralType::String || !is_string($argument->value)) {
+            $this->report(
+                "o argumento de 'env' deve ser um texto literal com o nome da variável, ex.: env(\"API_TOKEN\")",
+                $call->line,
+                $call->column,
+            );
+
+            return;
+        }
+
+        if (preg_match(self::ENV_NAME_PATTERN, $argument->value) !== 1) {
+            $this->report(
+                sprintf(
+                    'nome de variável de ambiente inválido em env(): "%s"; use letras, dígitos e _, sem começar por dígito',
+                    addcslashes($argument->value, "\0..\37\"\\"),
+                ),
+                $argument->line,
+                $argument->column,
             );
         }
     }
