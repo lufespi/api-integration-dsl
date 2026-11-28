@@ -1,4 +1,3 @@
-# Arquivo de apoio aos testes da CLI.
-# O conteúdo é irrelevante enquanto o pipeline não estiver integrado:
-# a CLI apenas valida que o arquivo existe, é legível e tem extensão .dsl.
-# Não representa a sintaxe da DSL, que ainda está em definição (docs/grammar.md).
+# Arquivo de apoio aos testes de validação de argumentos da CLI.
+# Só é usado em casos rejeitados antes da compilação (ex.: mais de um arquivo
+# de entrada), então seu conteúdo nunca chega ao Lexer.
