@@ -5,46 +5,27 @@ declare(strict_types=1);
 namespace App\Generator;
 
 /**
- * Funções auxiliares de runtime copiadas para todo script gerado.
+ * Código PHP fixo copiado uma vez para cada script gerado: HTTP com cURL, leitura
+ * de campos, operadores, conversões de tipo e execução das integrações.
  *
- * É código PHP fixo (não depende do programa .dsl): requisições HTTP com
- * cURL, leitura de campos do registro, operadores da DSL, conversão de tipos
- * e execução de uma integração. O PhpGenerator o inclui uma única vez por
- * script, mesmo com várias integrações, e gera apenas o código específico de
- * cada programa (cabeçalhos, condições, mapeamentos e URLs), que chama estas
- * funções.
- *
- * Todas as funções usam o prefixo "dsl_" para não colidir com nomes do PHP.
- * Erros operacionais (rede, HTTP, JSON, dados, configuração) são lançados
- * como DslRuntimeException e tratados em dsl_run_integration(), que os
- * reporta sem exibir valores de cabeçalhos ou variáveis de ambiente.
- *
- * A semântica dos operadores e conversões está em docs/generator.md.
- *
- * @internal Usada apenas pelo PhpGenerator.
+ * As funções usam o prefixo "dsl_". Falhas operacionais viram DslRuntimeException
+ * e são reportadas por dsl_run_integration() sem exibir valores de cabeçalhos ou
+ * de variáveis de ambiente.
  */
 final class RuntimeLibrary
 {
     /** Código PHP da biblioteca, sem a tag de abertura "<?php". */
     public const CODE = <<<'PHP'
-        /** Tempo máximo, em segundos, para estabelecer a conexão HTTP. */
+        // Tempos limite, em segundos: conexão e requisição completa.
         const DSL_CONNECT_TIMEOUT = 10;
-
-        /** Tempo máximo, em segundos, para concluir cada requisição HTTP. */
         const DSL_REQUEST_TIMEOUT = 30;
 
-        /**
-         * Falha operacional: rede, status HTTP, JSON, dados do registro ou
-         * configuração (ex.: variável de ambiente ausente).
-         */
+        /** Falha operacional: rede, status HTTP, JSON, dados do registro ou configuração. */
         final class DslRuntimeException extends RuntimeException
         {
         }
 
-        /**
-         * Função env("NOME") da DSL: lê uma variável de ambiente obrigatória.
-         * O valor nunca é exibido em mensagens de erro.
-         */
+        /** env("NOME"): variável obrigatória; o valor nunca aparece em mensagens. */
         function dsl_env(string $name): string
         {
             $value = getenv($name);
@@ -56,12 +37,10 @@ final class RuntimeLibrary
         }
 
         /**
-         * Lê um campo (possivelmente aninhado) do registro. Campo ausente, ou
-         * caminho que atravessa um valor que não é objeto JSON, resulta em null.
-         * Número JSON fora do intervalo de float (ex.: 1e400, decodificado como
-         * INF) é rejeitado, para não chegar a condições e mapeamentos.
+         * Campo ausente, ou caminho que atravessa um valor que não é objeto, resulta
+         * em null. Número fora do intervalo de float (1e400 vira INF) é rejeitado.
          *
-         * @param list<string> $path Segmentos após o alias (ex.: ['cliente', 'email']).
+         * @param list<string> $path segmentos após o alias
          */
         function dsl_field(mixed $record, array $path): mixed
         {
@@ -81,7 +60,7 @@ final class RuntimeLibrary
             return $value;
         }
 
-        /** Nome do tipo de um valor, para mensagens de erro (sem expor o valor). */
+        /** Tipo do valor para mensagens de erro, sem expor o valor. */
         function dsl_type(mixed $value): string
         {
             return match (true) {
@@ -101,9 +80,8 @@ final class RuntimeLibrary
         }
 
         /**
-         * Decimal em texto com todos os dígitos necessários para reconstruí-lo
-         * (1234567890.123456 não vira "1234567890.1235"), independentemente da
-         * configuração "precision" do PHP, que é restaurada em seguida.
+         * Menor texto que reconstrói o decimal (1234567890.123456 não vira
+         * "1234567890.1235"), independentemente da configuração "precision".
          */
         function dsl_float_text(float $value): string
         {
@@ -117,7 +95,6 @@ final class RuntimeLibrary
             }
         }
 
-        /** Converte um valor simples em texto (bool vira "true"/"false"). */
         function dsl_text(mixed $value): string
         {
             return match (true) {
@@ -131,11 +108,7 @@ final class RuntimeLibrary
             };
         }
 
-        /**
-         * Operador "+": concatenação quando ao menos um operando é texto;
-         * caso contrário, soma numérica. Decidido em tempo de execução, pois o
-         * tipo dos campos do registro só é conhecido com os dados reais.
-         */
+        /** "+": concatena se algum operando for texto (decidido em execução); senão, soma. */
         function dsl_add(mixed $left, mixed $right): int|float|string
         {
             if (is_string($left) || is_string($right)) {
@@ -145,7 +118,6 @@ final class RuntimeLibrary
             return dsl_arith('+', $left, $right);
         }
 
-        /** Operadores aritméticos "+", "-", "*", "/" e "%" entre números. */
         function dsl_arith(string $operator, mixed $left, mixed $right): int|float
         {
             if (!dsl_is_number($left) || !dsl_is_number($right)) {
@@ -176,7 +148,6 @@ final class RuntimeLibrary
             return $result;
         }
 
-        /** Menos unário. */
         function dsl_negate(mixed $value): int|float
         {
             if (!dsl_is_number($value)) {
@@ -188,10 +159,7 @@ final class RuntimeLibrary
             return -$value;
         }
 
-        /**
-         * Operador "==": números são comparados pelo valor (100 == 100.0);
-         * os demais valores, de forma estrita (tipo e valor).
-         */
+        /** "==": números pelo valor (100 == 100.0); demais valores, estritamente. */
         function dsl_equals(mixed $left, mixed $right): bool
         {
             if (dsl_is_number($left) && dsl_is_number($right)) {
@@ -201,7 +169,7 @@ final class RuntimeLibrary
             return $left === $right;
         }
 
-        /** Operadores "<", "<=", ">" e ">=": entre dois números ou entre dois textos. */
+        /** Relacionais: entre dois números ou entre dois textos. */
         function dsl_compare(string $operator, mixed $left, mixed $right): bool
         {
             if (dsl_is_number($left) && dsl_is_number($right)) {
@@ -226,9 +194,8 @@ final class RuntimeLibrary
         }
 
         /**
-         * Converte o valor de um campo do bloco "map" para o tipo declarado.
-         * Conversões que perderiam informação (ex.: 3.7 para int) e valores não
-         * finitos (INF, -INF, NAN: não representáveis em JSON) são erros.
+         * Conversão para o tipo declarado no "map". Perdas de informação (3.7 para
+         * int) e valores não finitos (sem representação em JSON) são erros.
          */
         function dsl_convert(mixed $value, string $type, string $field): string|int|float|bool
         {
@@ -274,8 +241,7 @@ final class RuntimeLibrary
         }
 
         /**
-         * Monta um cabeçalho HTTP a partir do valor calculado. Rejeita valores
-         * que não sejam texto ou número e quebras de linha (injeção de cabeçalho).
+         * Aceita texto ou número, sem quebras de linha (injeção de cabeçalho).
          *
          * @return array{string, string}
          */
@@ -306,10 +272,7 @@ final class RuntimeLibrary
             }
         }
 
-        /**
-         * Versão da URL usada em mensagens: a query string inteira é ocultada,
-         * pois pode conter tokens ou chaves. A URL enviada ao cURL não muda.
-         */
+        /** URL para mensagens, com a query string ocultada (pode conter tokens). */
         function dsl_safe_url(string $url): string
         {
             $position = strpos($url, '?');
@@ -318,24 +281,15 @@ final class RuntimeLibrary
         }
 
         /**
-         * Executa uma requisição HTTP com cURL.
+         * Requisição cURL. Com body, envia JSON e "Content-Type: application/json" se
+         * a API não declarou esse cabeçalho. Status fora de 2xx, falha de conexão e
+         * JSON inválido geram DslRuntimeException, com dsl_safe_url() e a descrição
+         * genérica do erro do cURL. TLS verificado, só HTTP/HTTPS, sem redirecionamento.
+         * Inteiros acima de PHP_INT_MAX são decodificados como texto.
          *
-         * Sem body para GET; com body, serializa em JSON e envia
-         * "Content-Type: application/json" se a API não declarou esse cabeçalho.
-         * Status fora de 2xx, falhas de conexão e JSON inválido (quando
-         * $expectJson) geram DslRuntimeException. A verificação TLS do cURL
-         * permanece ativa (padrão) e só HTTP/HTTPS são aceitos.
+         * @param list<array{string, string}> $headers pares [nome, valor]
          *
-         * Mensagens usam dsl_safe_url() e, em falhas de conexão, a descrição
-         * genérica do código de erro do cURL (curl_strerror), que não repete
-         * a URL requisitada.
-         *
-         * Inteiros JSON maiores que PHP_INT_MAX são decodificados como texto
-         * (JSON_BIGINT_AS_STRING), preservando todos os dígitos.
-         *
-         * @param list<array{string, string}> $headers Pares [nome, valor].
-         *
-         * @return mixed Resposta decodificada (objetos JSON viram stdClass), ou null se !$expectJson.
+         * @return mixed objetos JSON viram stdClass; null se !$expectJson
          */
         function dsl_http_request(string $method, string $url, array $headers, mixed $body, bool $expectJson): mixed
         {
@@ -387,7 +341,7 @@ final class RuntimeLibrary
                 }
                 $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
             } finally {
-                // Libera o handle cURL (no PHP 8+ basta remover a última referência).
+                // No PHP 8+, remover a última referência libera o handle.
                 unset($handle);
             }
 
@@ -408,9 +362,8 @@ final class RuntimeLibrary
         }
 
         /**
-         * Obtém os registros da resposta da origem: um objeto JSON é um
-         * registro; uma lista JSON é processada item a item (cada item deve
-         * ser um objeto). Qualquer outro formato é incompatível.
+         * Objeto JSON = um registro; lista = um registro por item (cada item deve
+         * ser objeto). Outro formato é incompatível.
          *
          * @return list<stdClass>
          */
@@ -449,18 +402,16 @@ final class RuntimeLibrary
         }
 
         /**
-         * Executa uma integração: consulta a origem (GET), aplica a condição
-         * e o mapeamento a cada registro e envia os elegíveis ao destino.
+         * Consulta a origem, aplica condição e mapeamento a cada registro e envia os
+         * elegíveis ao destino. Falha na configuração ou na origem interrompe a
+         * integração; falha em um registro é reportada e os demais continuam.
          *
-         * Falha na configuração ou na origem interrompe a integração; falha
-         * em um registro é reportada e os demais continuam sendo processados.
+         * @param callable(): list<array{string, string}> $sourceHeaders
+         * @param callable(): list<array{string, string}> $targetHeaders
+         * @param (callable(stdClass): bool)|null         $condition     null: todos os registros
+         * @param (callable(stdClass): stdClass)|null     $mapping       null: registro original
          *
-         * @param callable(): list<array{string, string}> $sourceHeaders Cabeçalhos da API de origem.
-         * @param callable(): list<array{string, string}> $targetHeaders Cabeçalhos da API de destino.
-         * @param (callable(stdClass): bool)|null         $condition     Cláusula "when" (null: todos).
-         * @param (callable(stdClass): stdClass)|null     $mapping       Bloco "map" (null: registro original).
-         *
-         * @return bool true se não houve nenhuma falha.
+         * @return bool true se não houve falha
          */
         function dsl_run_integration(
             string $name,
@@ -514,11 +465,9 @@ final class RuntimeLibrary
         }
 
         /**
-         * Executa as integrações na ordem do programa .dsl.
+         * @param list<callable(): bool> $integrations na ordem do programa
          *
-         * @param list<callable(): bool> $integrations
-         *
-         * @return int Código de saída: 0 sem falhas, 1 se alguma integração falhou.
+         * @return int 0 sem falhas, 1 se alguma integração falhou
          */
         function dsl_main(array $integrations): int
         {

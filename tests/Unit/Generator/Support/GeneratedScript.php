@@ -9,12 +9,8 @@ use RuntimeException;
 use stdClass;
 
 /**
- * Código PHP gerado, gravado em um diretório temporário e executado em um
- * processo PHP separado.
- *
- * Processos separados isolam os testes: o script gerado declara funções
- * globais (dsl_*) e chama exit(), o que não pode acontecer no processo do
- * PHPUnit. Nenhum método deste helper acessa a rede.
+ * Script gerado, gravado em diretório temporário e executado em processo separado,
+ * pois declara funções globais e chama exit().
  */
 final class GeneratedScript
 {
@@ -63,14 +59,12 @@ final class GeneratedScript
     }
 
     /**
-     * Carrega o script sem executar as integrações (DSL_NO_AUTORUN) e
-     * executa $snippet, que deve terminar com "return <valor>;".
+     * Carrega o script com DSL_NO_AUTORUN e executa $snippet, que deve terminar com
+     * "return <valor>;".
      *
-     * @param string               $snippet Corpo de função PHP.
-     * @param array<string,string> $env     Variáveis de ambiente do processo.
+     * @param array<string,string> $env
      *
      * @return array{value?: mixed, error?: string, class?: string, stderr: string}
-     *               "value" em caso de sucesso; "error"/"class" se lançou exceção.
      */
     public function call(string $snippet, array $env = []): array
     {
@@ -110,9 +104,7 @@ final class GeneratedScript
     }
 
     /**
-     * Executa o script como o usuário faria ("php script.php").
-     *
-     * @param array<string,string> $env Variáveis de ambiente do processo (além de PATH).
+     * @param array<string,string> $env
      *
      * @return array{exitCode: int, stdout: string, stderr: string}
      */

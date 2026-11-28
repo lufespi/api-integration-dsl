@@ -11,11 +11,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Usa os programas de examples/ como fixtures do Parser
- * (docs/architecture.md, seção 7):
- *  - todo exemplo de examples/valid/ deve ser aceito;
- *  - todo exemplo de examples/invalid/syntactic/ deve ser rejeitado com
- *    exatamente os erros declarados em suas linhas "// Erro esperado: ...".
+ * Exemplos válidos são aceitos; os de examples/invalid/syntactic/ são rejeitados
+ * exatamente com os erros das suas linhas "// Erro esperado: ...".
  */
 final class ExamplesTest extends TestCase
 {
@@ -27,10 +24,6 @@ final class ExamplesTest extends TestCase
     /**
      * Verifica que cada exemplo válido é reconhecido pela gramática e produz
      * uma AST com ao menos uma API e uma integração.
-     *
-     * @param string $path Caminho do exemplo.
-     *
-     * @return void
      */
     #[DataProvider('validExamples')]
     public function testValidExampleIsAccepted(string $path): void
@@ -55,10 +48,6 @@ final class ExamplesTest extends TestCase
      * Verifica que cada exemplo com erro sintático é rejeitado e que a
      * SyntaxException contém exatamente os erros documentados no próprio
      * arquivo, na mesma ordem.
-     *
-     * @param string $path Caminho do exemplo.
-     *
-     * @return void
      */
     #[DataProvider('syntacticErrorExamples')]
     public function testSyntacticErrorExampleIsRejectedWithDocumentedErrors(string $path): void
@@ -94,11 +83,9 @@ final class ExamplesTest extends TestCase
     }
 
     /**
-     * Verifica que as posições citadas em docs/ast-contract.md (seção 3) para
+     * Verifica que as posições citadas em docs/grammar.md (seção 10) para
      * o exemplo 3 correspondem às produzidas pelo Parser, mantendo a
      * documentação fiel à implementação.
-     *
-     * @return void
      */
     public function testPositionsDocumentedInAstContractMatchExample3(): void
     {
@@ -123,8 +110,6 @@ final class ExamplesTest extends TestCase
     /**
      * Verifica que existem ao menos os exemplos exigidos pelo enunciado do
      * trabalho: 3 programas válidos e 2 com erros sintáticos.
-     *
-     * @return void
      */
     public function testMinimumNumberOfExamplesRequiredByTheAssignment(): void
     {
@@ -132,11 +117,7 @@ final class ExamplesTest extends TestCase
         self::assertGreaterThanOrEqual(2, iterator_count(self::examplesIn('invalid/syntactic')));
     }
 
-    /**
-     * @param string $directory Subdiretório de examples/.
-     *
-     * @return \Generator<string, array{string}>
-     */
+    /** @return \Generator<string, array{string}> */
     private static function examplesIn(string $directory): \Generator
     {
         $files = glob(self::EXAMPLES . '/' . $directory . '/*.dsl') ?: [];

@@ -16,24 +16,14 @@ use stdClass;
 use Tests\Unit\Generator\Support\Ast;
 use Tests\Unit\Generator\Support\GeneratedScript;
 
-/**
- * Tradução de expressões (App\Generator\ExpressionCompiler).
- *
- * Além do texto gerado, os testes EXECUTAM a expressão traduzida, com a
- * biblioteca de runtime real, sobre registros simulados (em processo PHP
- * separado), verificando valor e tipo do resultado.
- */
+/** Tradução de expressões: o código gerado é executado com o runtime real sobre registros simulados. */
 final class ExpressionGenerationTest extends TestCase
 {
     /** Alias usado nas referências de campo dos testes. */
     private const ALIAS = 'c';
 
     /**
-     * Traduz a expressão e a avalia para o registro JSON informado.
-     *
-     * @param Expression           $expression Expressão da AST.
-     * @param string               $recordJson Registro de origem (objeto JSON).
-     * @param array<string,string> $env        Variáveis de ambiente.
+     * @param array<string,string> $env
      *
      * @return array{value?: mixed, error?: string, class?: string, stderr: string}
      */
@@ -49,9 +39,7 @@ final class ExpressionGenerationTest extends TestCase
         );
     }
 
-    /**
-     * Avalia e exige sucesso, sem warnings/notices em stderr.
-     */
+    /** Avalia e exige sucesso, sem warnings/notices em stderr. */
     private function valueOf(Expression $expression, string $recordJson = '{}', array $env = []): mixed
     {
         $result = $this->evaluate($expression, $recordJson, $env);
@@ -61,9 +49,7 @@ final class ExpressionGenerationTest extends TestCase
         return $result['value'];
     }
 
-    /**
-     * Avalia e exige falha de runtime (DslRuntimeException), devolvendo a mensagem.
-     */
+    /** Avalia e exige falha de runtime (DslRuntimeException), devolvendo a mensagem. */
     private function runtimeErrorOf(Expression $expression, string $recordJson = '{}', array $env = []): string
     {
         $result = $this->evaluate($expression, $recordJson, $env);
@@ -122,9 +108,7 @@ final class ExpressionGenerationTest extends TestCase
         yield 'unicode' => ['São Paulo – ✓'];
     }
 
-    /**
-     * Literal cujo valor PHP não corresponde ao literalType é rejeitado.
-     */
+    /** Literal cujo valor PHP não corresponde ao literalType é rejeitado. */
     public function testLiteralWithInconsistentTypeIsRejected(): void
     {
         $this->expectException(GenerationException::class);
@@ -318,9 +302,7 @@ final class ExpressionGenerationTest extends TestCase
         yield 'atravessa texto' => ['c.nome.x', $record, null];
     }
 
-    /**
-     * O alias sozinho referencia o registro inteiro.
-     */
+    /** O alias sozinho referencia o registro inteiro. */
     public function testAliasAloneReferencesTheWholeRecord(): void
     {
         $value = $this->valueOf(Ast::field('c'), '{"a":1}');
@@ -345,9 +327,7 @@ final class ExpressionGenerationTest extends TestCase
         self::assertNull($this->valueOf(new \App\Ast\Expression\FieldReference(['c', "x'] ); system('id'); //"], 1, 1)));
     }
 
-    /**
-     * env("NOME") lê a variável de ambiente em runtime.
-     */
+    /** env("NOME") lê a variável de ambiente em runtime. */
     public function testEnvReadsEnvironmentVariableAtRuntime(): void
     {
         $header = Ast::bin(Op::Add, Ast::str('Bearer '), Ast::env('CRM_TOKEN'));
@@ -356,9 +336,7 @@ final class ExpressionGenerationTest extends TestCase
         self::assertSame('Bearer s3cr3t', $this->valueOf($header, '{}', ['CRM_TOKEN' => 's3cr3t']));
     }
 
-    /**
-     * Variável ausente (ou vazia) gera erro claro, que nomeia a variável.
-     */
+    /** Variável ausente (ou vazia) gera erro claro, que nomeia a variável. */
     public function testMissingEnvironmentVariableFailsWithClearMessage(): void
     {
         $message = $this->runtimeErrorOf(Ast::env('CRM_TOKEN'), '{}', ['OUTRA' => 'valor']);
@@ -396,7 +374,7 @@ final class ExpressionGenerationTest extends TestCase
 
     /**
      * Referências de campo exigem contexto de registro e o alias correto
-     * (regra provisória P12); a posição do erro é a do nó.
+     * (S8/S9); a posição do erro é a do nó.
      */
     public function testFieldReferenceRules(): void
     {
@@ -422,7 +400,7 @@ final class ExpressionGenerationTest extends TestCase
         self::assertSame("dsl_field(\$record, ['total'])", $compiler->compileForRecord($reference, 'x', 'pedido'));
     }
     /**
-     * FIX-04: literais decimais não finitos (ex.: um decimal enorme que o
+     * Literais decimais não finitos (ex.: um decimal enorme que o
      * Lexer converte em INF) são erro de geração, não código com INF/NAN.
      */
     #[DataProvider('nonFiniteFloats')]
@@ -442,9 +420,7 @@ final class ExpressionGenerationTest extends TestCase
         yield 'NAN' => [NAN];
     }
 
-    /**
-     * FIX-04: valores extremos, mas finitos, continuam válidos.
-     */
+    /** Valores extremos, mas finitos, continuam válidos. */
     public function testExtremeFiniteValuesAreAccepted(): void
     {
         self::assertSame(PHP_FLOAT_MAX, $this->valueOf(Ast::float(PHP_FLOAT_MAX)));
@@ -454,7 +430,7 @@ final class ExpressionGenerationTest extends TestCase
     }
 
     /**
-     * FIX-04: resultados aritméticos não finitos (overflow) e números JSON
+     * Resultados aritméticos não finitos (overflow) e números JSON
      * fora do intervalo de float (decodificados como INF) geram erro claro,
      * em vez de chegar silenciosamente a condições e mapeamentos.
      */
@@ -480,7 +456,7 @@ final class ExpressionGenerationTest extends TestCase
     }
 
     /**
-     * FIX-04: dsl_convert() rejeita INF, -INF e NAN para qualquer tipo, e
+     * Dsl_convert() rejeita INF, -INF e NAN para qualquer tipo, e
      * textos numéricos que viram INF ao converter para float; conversões
      * válidas continuam iguais.
      */
@@ -519,7 +495,7 @@ final class ExpressionGenerationTest extends TestCase
     }
 
     /**
-     * FIX-02: dsl_convert() para int rejeita inteiros fora do intervalo do
+     * Dsl_convert() para int rejeita inteiros fora do intervalo do
      * PHP (que chegam como texto por JSON_BIGINT_AS_STRING) e aceita os limites.
      */
     public function testConvertToIntRejectsIntegersOutsidePhpRange(): void
@@ -576,9 +552,7 @@ final class ExpressionGenerationTest extends TestCase
         );
     }
 
-    /**
-     * FIX-03: dsl_safe_url() oculta toda a query string e preserva o resto.
-     */
+    /** Dsl_safe_url() oculta toda a query string e preserva o resto. */
     public function testSafeUrlRedactsTheWholeQueryString(): void
     {
         $result = GeneratedScript::forExpression('null')->call(<<<'PHP'

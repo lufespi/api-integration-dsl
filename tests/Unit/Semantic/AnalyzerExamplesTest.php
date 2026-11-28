@@ -12,12 +12,8 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Usa os programas de examples/ como fixtures do Analyzer
- * (docs/architecture.md, seção 7):
- *  - todo exemplo de examples/valid/ deve passar também pela análise semântica;
- *  - todo exemplo de examples/invalid/semantic/ deve ser aceito pelo Parser e
- *    rejeitado pelo Analyzer com exatamente os erros declarados em suas linhas
- *    "// Erro esperado: ...".
+ * Exemplos válidos passam pelo Analyzer; os de examples/invalid/semantic/ são aceitos
+ * pelo Parser e rejeitados exatamente com os erros das linhas "// Erro esperado: ...".
  */
 final class AnalyzerExamplesTest extends TestCase
 {
@@ -26,13 +22,7 @@ final class AnalyzerExamplesTest extends TestCase
     /** Prefixo das linhas de comentário que documentam o erro esperado. */
     private const EXPECTED_ERROR_MARKER = '// Erro esperado: ';
 
-    /**
-     * Verifica que cada exemplo válido passa pelo Analyzer sem erro.
-     *
-     * @param string $path Caminho do exemplo.
-     *
-     * @return void
-     */
+    /** Verifica que cada exemplo válido passa pelo Analyzer sem erro. */
     #[DataProvider('validExamples')]
     public function testValidExampleHasNoSemanticErrors(string $path): void
     {
@@ -55,10 +45,6 @@ final class AnalyzerExamplesTest extends TestCase
      * Verifica que cada exemplo com erro semântico é sintaticamente correto,
      * é rejeitado pelo Analyzer e que a SemanticException contém exatamente
      * os erros documentados no próprio arquivo, na mesma ordem.
-     *
-     * @param string $path Caminho do exemplo.
-     *
-     * @return void
      */
     #[DataProvider('semanticErrorExamples')]
     public function testSemanticErrorExampleIsRejectedWithDocumentedErrors(string $path): void
@@ -98,8 +84,6 @@ final class AnalyzerExamplesTest extends TestCase
 
     /**
      * Lista os .dsl de um subdiretório de examples/, indexados pelo nome do arquivo.
-     *
-     * @param string $directory Subdiretório de examples/ (ex.: "valid").
      *
      * @return iterable<string, array{string}>
      */

@@ -7,29 +7,16 @@ namespace App\Exceptions;
 use App\Semantic\SemanticError;
 use InvalidArgumentException;
 
-/**
- * Lançada pelo Analyzer quando o programa é sintaticamente válido, mas viola
- * regras de significado da linguagem (docs/semantic-analysis.md): nomes
- * repetidos, referências a APIs/endpoints inexistentes, campos fora do alias
- * e chamadas de função inválidas.
- *
- * Reúne todos os erros encontrados, ordenados por posição no fonte. A posição
- * exposta por getSourceLine()/getSourceColumn() é a do primeiro erro.
- *
- * Formato da mensagem:
- *  - um erro:      "Erro semântico na linha 3, coluna 5: API 'X' não declarada ..."
- *  - vários erros: "2 erros semânticos encontrados:" seguido de uma linha por
- *                  erro, no formato acima.
- */
+/** Reúne todos os erros semânticos, ordenados por posição; a posição exposta é a do primeiro. */
 final class SemanticException extends CompilerException
 {
     /** @var list<SemanticError> */
     private readonly array $errors;
 
     /**
-     * @param list<SemanticError> $errors Erros encontrados (ao menos um).
+     * @param list<SemanticError> $errors ao menos um
      *
-     * @throws InvalidArgumentException se a lista estiver vazia.
+     * @throws InvalidArgumentException se a lista estiver vazia
      */
     public function __construct(array $errors)
     {
@@ -43,21 +30,13 @@ final class SemanticException extends CompilerException
         parent::__construct(self::buildMessage($this->errors), $first->line, $first->column);
     }
 
-    /**
-     * Todos os erros semânticos encontrados, em ordem de posição no fonte.
-     *
-     * @return list<SemanticError>
-     */
+    /** @return list<SemanticError> */
     public function errors(): array
     {
         return $this->errors;
     }
 
-    /**
-     * @param list<SemanticError> $errors
-     *
-     * @return string
-     */
+    /** @param list<SemanticError> $errors */
     private static function buildMessage(array $errors): string
     {
         if (count($errors) === 1) {

@@ -8,12 +8,8 @@ use App\Cli\Application;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Executa main.php em um processo PHP separado, como o usuário faria no
- * terminal. Não depende de rede nem de APIs externas: o PHP gerado é apenas
- * validado com "php -l", nunca executado.
- *
- * As compilações bem-sucedidas gravam no output/ do projeto; por isso cada
- * teste usa um arquivo de entrada com nome único e remove o .php gerado.
+ * Executa main.php em processo separado. O PHP gerado só é validado com "php -l".
+ * Cada teste usa uma entrada de nome único e remove o .php gravado em output/.
  */
 final class MainScriptTest extends TestCase
 {
@@ -54,8 +50,6 @@ final class MainScriptTest extends TestCase
     /**
      * Copia um programa para um .dsl temporário de nome único.
      *
-     * @param string $source Arquivo .dsl de origem.
-     *
      * @return array{input: string, output: string} Caminho de entrada e do .php esperado em output/.
      */
     private function uniqueCopyOf(string $source): array
@@ -73,8 +67,6 @@ final class MainScriptTest extends TestCase
     /**
      * Verifica que "php main.php --help" imprime a ajuda em stdout e termina
      * com código de sucesso, executando o script em um processo real.
-     *
-     * @return void
      */
     public function testHelpFlag(): void
     {
@@ -87,8 +79,6 @@ final class MainScriptTest extends TestCase
     /**
      * Verifica que "php main.php" sem argumentos termina com EXIT_USAGE_ERROR
      * e orienta o usuário a consultar --help em stderr.
-     *
-     * @return void
      */
     public function testNoArgumentsExitsWithUsageError(): void
     {
@@ -101,8 +91,6 @@ final class MainScriptTest extends TestCase
     /**
      * "php main.php <arquivo.dsl>" grava output/<arquivo>.php, termina com
      * código 0 e o arquivo gerado tem sintaxe PHP válida.
-     *
-     * @return void
      */
     public function testValidProgramIsCompiledIntoOutputDirectory(): void
     {
@@ -123,8 +111,6 @@ final class MainScriptTest extends TestCase
     /**
      * Programa com erro semântico: código 1, mensagem em stderr, nada em
      * stdout e nenhum arquivo em output/.
-     *
-     * @return void
      */
     public function testInvalidProgramExitsWithCompilationError(): void
     {
@@ -141,8 +127,6 @@ final class MainScriptTest extends TestCase
 
     /**
      * Executa "php -l" em um arquivo.
-     *
-     * @param string $path Arquivo PHP.
      *
      * @return array{exitCode: int, stdout: string, stderr: string}
      */

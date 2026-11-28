@@ -5,28 +5,12 @@ declare(strict_types=1);
 namespace App\Lexer;
 
 /**
- * Token produzido pelo Analisador Léxico e consumido pelo Analisador
- * Sintático.
- *
- * Contrato (ver docs/tokens.md e docs/grammar.md):
- *  - $lexeme é o texto exato reconhecido no fonte (com aspas, no caso de
- *    literais de texto);
- *  - $value é o valor semântico, obrigatório para literais:
- *      StringLiteral => string já sem aspas e com sequências de escape resolvidas;
- *      IntLiteral    => int;
- *      FloatLiteral  => float;
- *    Para os demais tipos, $value é null;
- *  - $line e $column indicam a posição inicial do token (a partir de 1).
+ * Token do Lexer. $lexeme é o texto exato do fonte (com aspas nos textos);
+ * $value é o valor dos literais (string sem aspas e com escapes resolvidos, int
+ * ou float) e null nos demais tokens.
  */
 final readonly class Token
 {
-    /**
-     * @param TokenType             $type   Categoria do token (terminal da gramática).
-     * @param string                $lexeme Texto exato reconhecido no fonte.
-     * @param int                   $line   Linha inicial (a partir de 1).
-     * @param int                   $column Coluna inicial (a partir de 1).
-     * @param string|int|float|null $value  Valor semântico dos literais.
-     */
     public function __construct(
         public TokenType $type,
         public string $lexeme,
@@ -36,12 +20,7 @@ final readonly class Token
     ) {
     }
 
-    /**
-     * Descrição do token concreto para mensagens de erro, incluindo o lexema
-     * quando ele ajuda a localizar o problema (ex.: "identificador 'usuarios'").
-     *
-     * @return string
-     */
+    /** Descrição para mensagens de erro, ex.: "identificador 'usuarios'". */
     public function describe(): string
     {
         return match ($this->type) {

@@ -4,17 +4,12 @@ declare(strict_types=1);
 
 namespace App\Ast;
 
-/**
- * Raiz da AST: todas as APIs e integrações declaradas no arquivo-fonte, na
- * ordem em que aparecem.
- *
- * Produção correspondente: programa (docs/grammar.md).
- */
+/** Raiz da AST, com as declarações na ordem do fonte (produção programa). */
 final readonly class Program implements Node
 {
     /**
-     * @param list<Api>         $apis         APIs declaradas.
-     * @param list<Integration> $integrations Integrações declaradas.
+     * @param list<Api>         $apis
+     * @param list<Integration> $integrations
      */
     public function __construct(
         public array $apis,
@@ -22,9 +17,6 @@ final readonly class Program implements Node
     ) {
     }
 
-    /**
-     * @return array<string, mixed>
-     */
     public function toArray(): array
     {
         return [

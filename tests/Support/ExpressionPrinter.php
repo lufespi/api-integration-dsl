@@ -12,19 +12,9 @@ use App\Ast\Expression\Literal;
 use App\Ast\Expression\UnaryExpression;
 use LogicException;
 
-/**
- * Converte uma expressão da AST em texto totalmente parentizado, tornando
- * explícitas a precedência e a associatividade escolhidas pelo Parser.
- *
- * Ex.: a AST de "a + b * c" é impressa como "(a + (b * c))".
- */
+/** Imprime a expressão totalmente parentizada, ex.: "a + b * c" → "(a + (b * c))". */
 final class ExpressionPrinter
 {
-    /**
-     * @param Expression $expression Expressão a imprimir.
-     *
-     * @return string
-     */
     public static function print(Expression $expression): string
     {
         return match (true) {

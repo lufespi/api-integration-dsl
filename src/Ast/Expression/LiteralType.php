@@ -4,9 +4,6 @@ declare(strict_types=1);
 
 namespace App\Ast\Expression;
 
-/**
- * Tipo de um literal escrito no programa.
- */
 enum LiteralType: string
 {
     case String = 'string';

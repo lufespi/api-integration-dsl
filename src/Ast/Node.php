@@ -5,19 +5,15 @@ declare(strict_types=1);
 namespace App\Ast;
 
 /**
- * Nó da Árvore Sintática Abstrata (AST).
+ * Nó da AST, contrato entre o Parser e as etapas seguintes.
  *
- * A AST é o contrato entre o Parser (que a constrói) e o Generator (que a
- * consome). Os nós são objetos imutáveis; toArray() fornece a representação
- * em arrays associativos descrita em docs/ast-contract.md, útil para testes,
- * depuração e para consumidores que prefiram arrays.
+ * Todos os nós, exceto Program, guardam linha e coluna (a partir de 1): a do
+ * operador em expressões unárias e binárias e, nos demais, a do primeiro token.
  */
 interface Node
 {
     /**
-     * Representação do nó (e de seus filhos) em arrays associativos, sempre
-     * com a chave "type" contendo o nome do nó (exceto EndpointRef, que é um
-     * par api + endpoint).
+     * Árvore em arrays associativos, com a chave "type" (exceto em EndpointRef).
      *
      * @return array<string, mixed>
      */

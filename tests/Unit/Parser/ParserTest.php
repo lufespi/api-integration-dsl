@@ -20,21 +20,12 @@ use PHPUnit\Framework\TestCase;
 use Tests\Support\ExpressionPrinter;
 
 /**
- * Testes do Analisador Sintático com programas válidos: estrutura da AST,
- * cláusulas opcionais, tipos de dados, literais, precedência e
- * associatividade dos operadores.
- *
- * Os tokens são produzidos pelo Lexer do compilador (App\Lexer\Lexer).
+ * Programas válidos: estrutura da AST, cláusulas opcionais, literais, precedência
+ * e associatividade.
  */
 final class ParserTest extends TestCase
 {
-    /**
-     * Analisa um programa escrito na DSL.
-     *
-     * @param string $source Programa na DSL.
-     *
-     * @return Program
-     */
+    /** Analisa um programa escrito na DSL. */
     private function parse(string $source): Program
     {
         return (new Parser((new Lexer($source))->tokenize()))->parse();
@@ -43,10 +34,6 @@ final class ParserTest extends TestCase
     /**
      * Analisa uma expressão isolada, colocando-a na cláusula "when" de uma
      * integração mínima.
-     *
-     * @param string $expression Expressão na DSL.
-     *
-     * @return Expression
      */
     private function parseExpression(string $expression): Expression
     {
@@ -58,11 +45,8 @@ final class ParserTest extends TestCase
     }
 
     /**
-     * Verifica que o programa do esboço original (docs/grammar.md) gera
-     * exatamente a AST documentada em docs/ast-contract.md, incluindo nomes,
-     * métodos, caminhos, referências e posições (linha/coluna).
-     *
-     * @return void
+     * O programa da seção 10 de docs/grammar.md gera exatamente a AST documentada
+     * ali, incluindo nomes, métodos, caminhos, referências e posições.
      */
     public function testContractExampleProducesTheDocumentedAst(): void
     {
@@ -144,8 +128,6 @@ final class ParserTest extends TestCase
     /**
      * Verifica que a barra final do endereço-base é removida, como exige o
      * contrato da AST ("baseUrl: string sem barra final").
-     *
-     * @return void
      */
     public function testTrailingSlashIsRemovedFromBaseUrl(): void
     {
@@ -157,11 +139,6 @@ final class ParserTest extends TestCase
     /**
      * Verifica que cada método HTTP aceito pela gramática é convertido no
      * caso correspondente de HttpMethod.
-     *
-     * @param string     $lexeme   Método como escrito no fonte.
-     * @param HttpMethod $expected Método esperado na AST.
-     *
-     * @return void
      */
     #[DataProvider('httpMethods')]
     public function testEveryHttpMethodIsAccepted(string $lexeme, HttpMethod $expected): void
@@ -189,8 +166,6 @@ final class ParserTest extends TestCase
      * Verifica que cabeçalhos e endpoints são mantidos na ordem do fonte e
      * que o valor do cabeçalho é uma expressão (concatenação com chamada de
      * função).
-     *
-     * @return void
      */
     public function testHeadersAndEndpointsKeepSourceOrder(): void
     {
@@ -217,8 +192,6 @@ final class ParserTest extends TestCase
     /**
      * Verifica a integração completa: alias, condição "when" e bloco "map",
      * com tipo de dado e expressão de cada campo.
-     *
-     * @return void
      */
     public function testIntegrationWithAliasConditionAndMappings(): void
     {
@@ -254,8 +227,6 @@ final class ParserTest extends TestCase
     /**
      * Verifica que as cláusulas opcionais podem ser omitidas
      * independentemente: só "map", só "when", ou nenhuma delas.
-     *
-     * @return void
      */
     public function testOptionalClausesAreIndependent(): void
     {
@@ -276,11 +247,6 @@ final class ParserTest extends TestCase
     /**
      * Verifica que cada tipo de dado da gramática (produção tipo) é
      * convertido no caso correspondente de DataType.
-     *
-     * @param string   $lexeme   Tipo como escrito no fonte.
-     * @param DataType $expected Tipo esperado na AST.
-     *
-     * @return void
      */
     #[DataProvider('dataTypes')]
     public function testEveryDataTypeIsAccepted(string $lexeme, DataType $expected): void
@@ -306,12 +272,6 @@ final class ParserTest extends TestCase
     /**
      * Verifica que cada forma de literal gera um nó Literal com o tipo e o
      * valor PHP corretos.
-     *
-     * @param string                     $source       Literal como escrito no fonte.
-     * @param LiteralType                $expectedType Tipo esperado.
-     * @param string|int|float|bool|null $expected     Valor esperado.
-     *
-     * @return void
      */
     #[DataProvider('literals')]
     public function testLiteralsKeepTypeAndValue(string $source, LiteralType $expectedType, string|int|float|bool|null $expected): void
@@ -342,11 +302,6 @@ final class ParserTest extends TestCase
     /**
      * Verifica, imprimindo a AST totalmente parentizada, que a árvore
      * respeita a tabela de precedência e associatividade de docs/grammar.md.
-     *
-     * @param string $source   Expressão na DSL.
-     * @param string $expected Mesma expressão com os agrupamentos explícitos.
-     *
-     * @return void
      */
     #[DataProvider('precedenceCases')]
     public function testOperatorPrecedenceAndAssociativity(string $source, string $expected): void
@@ -389,8 +344,6 @@ final class ParserTest extends TestCase
      * Verifica os tipos dos nós de expressão e as posições registradas:
      * operações binárias na posição do operador, referências e chamadas na
      * posição do primeiro identificador.
-     *
-     * @return void
      */
     public function testExpressionNodesRecordSourcePositions(): void
     {
@@ -410,8 +363,6 @@ final class ParserTest extends TestCase
     /**
      * Verifica que APIs e integrações podem ser declaradas em qualquer ordem
      * (decisão G9) e que cada lista preserva a ordem do fonte.
-     *
-     * @return void
      */
     public function testDeclarationsMayAppearInAnyOrder(): void
     {
@@ -429,8 +380,6 @@ final class ParserTest extends TestCase
     /**
      * Verifica que a análise pode ser repetida na mesma instância com o mesmo
      * resultado (o estado interno é reiniciado a cada chamada).
-     *
-     * @return void
      */
     public function testParseCanBeCalledMoreThanOnce(): void
     {

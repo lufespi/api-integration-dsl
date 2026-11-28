@@ -4,12 +4,7 @@ declare(strict_types=1);
 
 namespace App\Ast;
 
-/**
- * Tipos de dados declaráveis nos mapeamentos de campos (bloco "map").
- *
- * Indicam ao Generator para qual tipo o valor calculado deve ser convertido
- * antes de ser enviado ao endpoint de destino.
- */
+/** Tipo declarado em um campo do bloco `map`; orienta a conversão feita pelo Generator. */
 enum DataType: string
 {
     case String = 'string';

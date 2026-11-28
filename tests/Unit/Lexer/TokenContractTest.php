@@ -20,8 +20,6 @@ final class TokenContractTest extends TestCase
      * Verifica que a tabela de palavras reservadas contém exatamente as 22
      * palavras da gramática, diferencia maiúsculas de minúsculas e não inclui
      * categorias como IDENTIFIER e EOF.
-     *
-     * @return void
      */
     public function testReservedWordsMatchTheGrammar(): void
     {
@@ -46,11 +44,6 @@ final class TokenContractTest extends TestCase
     /**
      * Verifica a descrição de cada tipo de token concreto usada nas mensagens
      * de erro sintático.
-     *
-     * @param Token  $token    Token a descrever.
-     * @param string $expected Descrição esperada.
-     *
-     * @return void
      */
     #[DataProvider('tokenDescriptions')]
     public function testTokenDescriptionForErrorMessages(Token $token, string $expected): void

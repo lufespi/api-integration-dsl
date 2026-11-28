@@ -18,8 +18,6 @@ final class AutoloadTest extends TestCase
     /**
      * Verifica que o autoloader do Composer registra o prefixo PSR-4 "App\"
      * apontando exclusivamente para o diretório src/.
-     *
-     * @return void
      */
     public function testAppNamespaceIsMappedToSrcDirectory(): void
     {
@@ -46,8 +44,6 @@ final class AutoloadTest extends TestCase
     /**
      * Verifica que uma classe do namespace "App\" (Application) é carregada do
      * arquivo esperado em src/, confirmando o autoload na prática.
-     *
-     * @return void
      */
     public function testClassInAppNamespaceIsResolvedFromSrc(): void
     {
@@ -61,10 +57,6 @@ final class AutoloadTest extends TestCase
      * Normaliza um caminho para comparação entre plataformas: resolve ".." e
      * links via realpath(), usa "/" como separador e,
      * no Windows (sistema de arquivos sem distinção de caixa), ignora a caixa.
-     *
-     * @param string $path Caminho a normalizar.
-     *
-     * @return string
      */
     private static function normalizePath(string $path): string
     {

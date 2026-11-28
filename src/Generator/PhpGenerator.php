@@ -7,27 +7,19 @@ namespace App\Generator;
 use App\Ast\Api;
 use App\Ast\Endpoint;
 use App\Ast\EndpointRef;
-use App\Ast\FieldMapping;
 use App\Ast\HttpMethod;
 use App\Ast\Integration;
 use App\Ast\Program;
 
 /**
- * Gerador de código: traduz a AST (App\Ast\Program) em um script PHP
- * autônomo que executa as integrações com cURL.
+ * Gera um script PHP autônomo (cURL + JSON) a partir da AST.
  *
- * O script gerado contém, nesta ordem:
- *  1. a biblioteca de runtime (RuntimeLibrary), uma única vez;
- *  2. uma função de cabeçalhos por API usada (dsl_api_headers_N);
- *  3. por integração: condição (dsl_condition_N), mapeamento (dsl_map_N) e
- *     a função que a executa (dsl_integration_N);
- *  4. a chamada a dsl_main(), que roda as integrações e define o código de
- *     saída (omitida se a constante DSL_NO_AUTORUN estiver definida).
+ * O script contém a RuntimeLibrary, uma função de cabeçalhos por API usada, as
+ * funções de condição, mapeamento e execução de cada integração e a chamada a
+ * dsl_main(), omitida com DSL_NO_AUTORUN. A saída é determinística.
  *
- * O Gerador não grava arquivos, não executa o código e não faz requisições.
- * Antes de gerar, faz apenas as verificações semânticas mínimas para uma
- * geração segura (ver docs/generator.md); problemas viram GenerationException.
- * A saída é determinística: a mesma AST produz sempre o mesmo texto.
+ * Parte das verificações repete o Analyzer de forma defensiva, para ASTs que não
+ * passaram por ele; as demais são restrições próprias da geração.
  */
 final class PhpGenerator
 {
@@ -44,16 +36,7 @@ final class PhpGenerator
         $this->expressions = new ExpressionCompiler();
     }
 
-    /**
-     * Gera o código-fonte PHP do programa.
-     *
-     * @param Program $program AST produzida pelo Parser (ou montada à mão).
-     *
-     * @return string Código PHP completo, iniciado por "<?php".
-     *
-     * @throws GenerationException Se a AST tiver referências inválidas ou
-     *                             construções não suportadas.
-     */
+    /** @throws GenerationException se a AST tiver referências inválidas ou construções não suportadas */
     public function generate(Program $program): string
     {
         $apis = $this->indexApis($program);
@@ -101,7 +84,7 @@ final class PhpGenerator
         $sections = [
             "<?php\n\ndeclare(strict_types=1);\n",
             $this->fileHeader($program),
-            "// ===== Biblioteca de runtime (igual em todo script gerado) =====\n\n" . RuntimeLibrary::CODE . "\n",
+            "// ===== Biblioteca de runtime =====\n\n" . RuntimeLibrary::CODE . "\n",
             "// ===== Cabeçalhos das APIs =====\n",
         ];
         foreach (array_keys($usedApis) as $apiNumber) {
@@ -116,8 +99,6 @@ final class PhpGenerator
     /**
      * Indexa APIs e endpoints por nome, rejeitando nomes duplicados, que
      * tornariam ambígua a resolução de "Api.endpoint".
-     *
-     * @param Program $program Programa.
      *
      * @return array<string, array{number: int, api: Api, endpoints: array<string, Endpoint>}>
      */
@@ -156,12 +137,7 @@ final class PhpGenerator
     }
 
     /**
-     * Resolve uma referência "Api.endpoint".
-     *
-     * @param EndpointRef                                                                    $ref         Referência.
-     * @param array<string, array{number: int, api: Api, endpoints: array<string, Endpoint>}> $apis        APIs indexadas.
-     * @param string                                                                         $role        "origem" ou "destino".
-     * @param Integration                                                                    $integration Integração.
+     * @param array<string, array{number: int, api: Api, endpoints: array<string, Endpoint>}> $apis
      *
      * @return array{array{number: int, api: Api, endpoints: array<string, Endpoint>}, Endpoint}
      */
@@ -188,15 +164,10 @@ final class PhpGenerator
     }
 
     /**
-     * Rejeita métodos HTTP que esta versão não traduz corretamente na posição
-     * indicada (ex.: DELETE como destino, POST como origem).
+     * Rejeita métodos que esta versão não traduz na posição indicada (ex.: DELETE
+     * como destino, POST como origem).
      *
-     * @param EndpointRef      $ref      Referência (posição do erro).
-     * @param Endpoint         $endpoint Endpoint resolvido.
-     * @param list<HttpMethod> $allowed  Métodos aceitos.
-     * @param string           $role     "origem" ou "destino".
-     *
-     * @return void
+     * @param list<HttpMethod> $allowed
      */
     private function checkMethod(EndpointRef $ref, Endpoint $endpoint, array $allowed, string $role): void
     {
@@ -227,11 +198,6 @@ final class PhpGenerator
      * string, fragmento, espaços ou caracteres de controle. Caminho do
      * endpoint: começa com "/", query string fixa permitida, sem fragmento,
      * espaços, caracteres de controle ou parâmetros "{...}".
-     *
-     * @param Api      $api      API.
-     * @param Endpoint $endpoint Endpoint.
-     *
-     * @return string
      */
     private function endpointUrl(Api $api, Endpoint $endpoint): string
     {
@@ -269,13 +235,7 @@ final class PhpGenerator
         return rtrim($api->baseUrl, '/') . $path;
     }
 
-    /**
-     * Motivo pelo qual o endereço-base é inválido, ou null se for válido.
-     *
-     * @param string $url Endereço-base.
-     *
-     * @return string|null
-     */
+    /** Motivo pelo qual o endereço-base é inválido, ou null se for válido. */
     private static function baseUrlProblem(string $url): ?string
     {
         if (preg_match('/[\s\x00-\x1F\x7F]/', $url) === 1) {
@@ -313,13 +273,7 @@ final class PhpGenerator
         return null;
     }
 
-    /**
-     * Aceita nome de host (inclusive localhost), IPv4 e IPv6 entre colchetes.
-     *
-     * @param string $host Host extraído por parse_url().
-     *
-     * @return bool
-     */
+    /** Aceita nome de host (inclusive localhost), IPv4 e IPv6 entre colchetes. */
     private static function isValidHost(string $host): bool
     {
         if (str_starts_with($host, '[') && str_ends_with($host, ']')) {
@@ -335,11 +289,6 @@ final class PhpGenerator
     /**
      * Função que calcula os cabeçalhos de uma API. Cada API tem a sua: os
      * cabeçalhos (e credenciais) de uma API nunca são enviados a outra.
-     *
-     * @param int $number Número da API no programa (a partir de 1).
-     * @param Api $api    API.
-     *
-     * @return string
      */
     private function headersFunction(int $number, Api $api): string
     {
@@ -364,7 +313,7 @@ final class PhpGenerator
         $body = $entries === [] ? "    return [];\n" : "    return [\n" . implode('', $entries) . "    ];\n";
 
         return sprintf(
-            "/**\n * Cabeçalhos da API %s (enviados somente a ela).\n *\n * @return list<array{string, string}>\n */\n"
+            "/** @return list<array{string, string}> cabeçalhos da API %s, enviados somente a ela */\n"
             . "function dsl_api_headers_%d(): array\n{\n%s}\n",
             self::comment($api->name),
             $number,
@@ -372,19 +321,7 @@ final class PhpGenerator
         );
     }
 
-    /**
-     * Código de uma integração: condição, mapeamento e função de execução.
-     *
-     * @param int        $number       Número da integração (a partir de 1).
-     * @param Integration $integration Integração.
-     * @param int        $sourceApi    Número da API de origem.
-     * @param string     $sourceUrl    URL da origem.
-     * @param int        $targetApi    Número da API de destino.
-     * @param HttpMethod $targetMethod Método do destino.
-     * @param string     $targetUrl    URL do destino.
-     *
-     * @return string
-     */
+    /** Código de uma integração: condição, mapeamento e função de execução. */
     private function integrationCode(
         int $number,
         Integration $integration,
@@ -409,7 +346,7 @@ final class PhpGenerator
         if ($integration->condition !== null) {
             $expression = $this->expressions->compileForRecord($integration->condition, $integration->name, $integration->alias);
             $code .= sprintf(
-                "/**\n * Condição \"when\": %s\n */\nfunction dsl_condition_%d(stdClass \$record): bool\n{\n    return (bool) %s;\n}\n\n",
+                "// when %s\nfunction dsl_condition_%d(stdClass \$record): bool\n{\n    return (bool) %s;\n}\n\n",
                 self::comment($this->expressions->describe($integration->condition)),
                 $number,
                 $expression,
@@ -423,12 +360,8 @@ final class PhpGenerator
             $mapping = sprintf('dsl_map_%d(...)', $number);
         }
 
-        $mappingNote = $integration->mappings === []
-            ? ' * Sem bloco "map": o registro de origem é enviado sem alterações.' . "\n"
-            : '';
-
         $code .= sprintf(
-            "/**\n * Executa a integração %s.\n%s */\nfunction dsl_integration_%d(): bool\n{\n"
+            "function dsl_integration_%d(): bool\n{\n"
             . "    return dsl_run_integration(\n"
             . "        name: %s,\n"
             . "        sourceUrl: %s,\n"
@@ -439,8 +372,6 @@ final class PhpGenerator
             . "        condition: %s,\n"
             . "        mapping: %s,\n"
             . "    );\n}\n",
-            self::comment($integration->name),
-            $mappingNote,
             $number,
             var_export($integration->name, true),
             var_export($sourceUrl, true),
@@ -455,21 +386,11 @@ final class PhpGenerator
         return $code;
     }
 
-    /**
-     * Função do bloco "map": monta o registro de destino campo a campo,
-     * convertendo cada valor para o tipo declarado.
-     *
-     * @param int         $number      Número da integração.
-     * @param Integration $integration Integração.
-     *
-     * @return string
-     */
     private function mappingFunction(int $number, Integration $integration): string
     {
         $fields = [];
         $entries = [];
         foreach ($integration->mappings as $mapping) {
-            /** @var FieldMapping $mapping */
             if ($mapping->field === '' || isset($fields[$mapping->field])) {
                 throw new GenerationException(
                     sprintf("campo '%s' vazio ou repetido no bloco map da integração '%s'", $mapping->field, $integration->name),
@@ -491,44 +412,24 @@ final class PhpGenerator
         }
 
         return sprintf(
-            "/**\n * Mapeamento \"map\": monta o registro enviado ao destino.\n */\n"
-            . "function dsl_map_%d(stdClass \$record): stdClass\n{\n    return (object) [\n%s    ];\n}\n\n",
+            "function dsl_map_%d(stdClass \$record): stdClass\n{\n    return (object) [\n%s    ];\n}\n\n",
             $number,
             implode('', $entries),
         );
     }
 
-    /**
-     * Comentário inicial do script.
-     *
-     * @param Program $program Programa.
-     *
-     * @return string
-     */
     private function fileHeader(Program $program): string
     {
         $names = array_map(static fn (Integration $integration): string => $integration->name, $program->integrations);
 
         return "/*\n"
-            . " * Script gerado pelo compilador API Integration DSL (App\\Generator\\PhpGenerator).\n"
-            . " * Não edite: altere o programa .dsl e compile novamente.\n"
-            . " *\n"
-            . " * Requisitos: PHP 8.3+ com as extensões curl e json (sem Composer).\n"
-            . " * Execução:   php <este-arquivo>.php\n"
-            . " * Credenciais usadas em env(\"...\") devem estar definidas no ambiente.\n"
-            . " * Código de saída: 0 sem falhas; 1 se alguma integração falhar.\n"
-            . " *\n"
+            . " * Gerado pelo compilador API Integration DSL: altere o .dsl e compile novamente.\n"
+            . " * Requisitos: PHP 8.3+ com curl e json; variáveis usadas em env() definidas no ambiente.\n"
+            . " * Código de saída: 0 sem falhas, 1 se alguma integração falhar.\n"
             . ' * Integrações: ' . ($names === [] ? '(nenhuma)' : self::comment(implode(', ', $names))) . "\n"
             . " */\n";
     }
 
-    /**
-     * Bloco final que executa as integrações.
-     *
-     * @param int $count Quantidade de integrações.
-     *
-     * @return string
-     */
     private function mainCode(int $count): string
     {
         $calls = '';
@@ -538,8 +439,7 @@ final class PhpGenerator
         $list = $calls === '' ? '[]' : "[\n" . $calls . '    ]';
 
         return "// ===== Execução =====\n"
-            . "// Defina a constante DSL_NO_AUTORUN antes de incluir este arquivo para\n"
-            . "// carregar as funções sem executar as integrações.\n"
+            . "// Com a constante DSL_NO_AUTORUN definida, apenas carrega as funções.\n"
             . "if (!defined('DSL_NO_AUTORUN')) {\n"
             . '    exit(dsl_main(' . $list . "));\n"
             . "}\n";
@@ -549,10 +449,6 @@ final class PhpGenerator
      * Neutraliza texto vindo da AST antes de colocá-lo em um comentário:
      * remove quebras de linha e sequências que encerrariam o comentário
      * ou o modo PHP ("* /" e "? >").
-     *
-     * @param string $text Texto livre.
-     *
-     * @return string
      */
     private static function comment(string $text): string
     {
