@@ -100,12 +100,30 @@ final class RuntimeLibrary
             return is_int($value) || is_float($value);
         }
 
+        /**
+         * Decimal em texto com todos os dígitos necessários para reconstruí-lo
+         * (1234567890.123456 não vira "1234567890.1235"), independentemente da
+         * configuração "precision" do PHP, que é restaurada em seguida.
+         */
+        function dsl_float_text(float $value): string
+        {
+            $precision = ini_set('precision', '-1');
+            try {
+                return (string) $value;
+            } finally {
+                if ($precision !== false) {
+                    ini_set('precision', $precision);
+                }
+            }
+        }
+
         /** Converte um valor simples em texto (bool vira "true"/"false"). */
         function dsl_text(mixed $value): string
         {
             return match (true) {
                 is_string($value) => $value,
-                is_int($value), is_float($value) => (string) $value,
+                is_int($value) => (string) $value,
+                is_float($value) => dsl_float_text($value),
                 is_bool($value) => $value ? 'true' : 'false',
                 default => throw new DslRuntimeException(
                     sprintf('não é possível usar um valor %s como texto', dsl_type($value)),

@@ -184,9 +184,12 @@ campo não existe ou quando o caminho atravessa um valor que não é objeto
 vez de produzir um resultado arbitrário; já `c.x == null` e `!c.x` funcionam
 naturalmente com campos ausentes.
 
-**Texto de valores.** Na concatenação, números usam a conversão do PHP
-(`1.5` → `"1.5"`), booleanos viram `"true"`/`"false"`; `null`, listas e
-objetos não podem ser concatenados (erro).
+**Texto de valores.** Na concatenação e no tipo `string` do `map`, inteiros
+viram texto diretamente e decimais usam a menor representação que preserva o
+valor (`1.5` → `"1.5"`, `100.0` → `"100"`, `1234567890.123456` →
+`"1234567890.123456"`), independentemente da configuração `precision` do PHP;
+booleanos viram `"true"`/`"false"`; `null`, listas e objetos não podem ser
+concatenados (erro).
 
 ### 3.4 Mapeamento (`map`) e conversão de tipos (`dsl_convert`)
 
@@ -241,6 +244,9 @@ Consequência (decisão do runtime, G-6): ao reenviar o registro sem `map`,
 esses valores saem como texto JSON (`"id":"12345678901234567890"`), não como
 número. No `map`, `string` preserva os dígitos e `int` rejeita o valor
 (fora do intervalo); `float` converte com a perda de precisão própria do tipo.
+Em expressões, o valor se comporta como qualquer texto: `-`, `*`, `/`, `%` e
+comparações com números são erro, mas `+` **concatena** (regra P11), então
+`r.id + 1` resulta em `"123456789012345678901"`, e não em uma soma.
 
 ### 3.8 Valores numéricos não finitos
 
@@ -359,8 +365,8 @@ Sujeitas à validação do grupo; nenhuma exigiu alterar a AST ou a gramática.
 - A resposta do destino não é lida (só o status é verificado).
 - `==` entre dois objetos JSON compara identidade, não conteúdo (listas são comparadas por valor).
 - Inteiros JSON maiores que `PHP_INT_MAX` são encaminhados como texto (`"9223372036854775808"`),
-  não podem ser usados em operações aritméticas nem convertidos para `int`; não há
-  aritmética de precisão arbitrária.
+  não podem ser convertidos para `int` nem usados com `-`, `*`, `/`, `%`; com `+`
+  são concatenados como texto (seção 3.7). Não há aritmética de precisão arbitrária.
 - O registro reenviado sem `map` tem os mesmos campos e valores, mas não é
   byte a byte idêntico ao recebido (espaços, ordem de escape e formato numérico podem mudar).
 - A compatibilidade de `tests/Unit/AutoloadTest.php` com Windows foi corrigida

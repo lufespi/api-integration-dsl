@@ -553,8 +553,10 @@ do primeiro erro). Com mais de um erro, a mensagem é:
 
 Ao encontrar um erro, o Parser o registra e **descarta tokens até o próximo
 ponto de sincronização**: o início de uma declaração de nível superior
-(`api` ou `integration`) ou o `EOF`. Essas palavras reservadas só ocorrem no
-início de declarações, então a retomada é segura e evita erros em cascata.
+(`api` ou `integration`) ou o `EOF`. Fora de referências a campo, essas
+palavras reservadas só ocorrem no início de declarações; depois de `.` (ex.:
+`pedido.api`) elas são nomes de campo e o Parser não sincroniza nelas. Assim a
+retomada é segura e evita erros em cascata.
 Assim, erros em declarações diferentes são relatados **todos na mesma
 execução** (ver [`04-multiplos-erros.dsl`](../examples/invalid/syntactic/04-multiplos-erros.dsl)).
 Se houve qualquer erro, nenhuma AST é devolvida.

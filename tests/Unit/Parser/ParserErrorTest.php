@@ -234,6 +234,31 @@ final class ParserErrorTest extends TestCase
     }
 
     /**
+     * "api" e "integration" depois de "." são nomes de campo, não início de
+     * declaração: a recuperação não sincroniza neles e não gera erros em cascata.
+     *
+     * @param string $source Programa com um único erro antes de "x.api"/"x.integration".
+     *
+     * @return void
+     */
+    #[DataProvider('reservedWordsAsFieldNamesAfterError')]
+    public function testRecoveryDoesNotSynchronizeOnReservedWordUsedAsFieldName(string $source): void
+    {
+        $exception = $this->syntaxErrorOf($source);
+
+        self::assertCount(1, $exception->errors(), $exception->getMessage());
+    }
+
+    /**
+     * @return iterable<string, array{string}>
+     */
+    public static function reservedWordsAsFieldNamesAfterError(): iterable
+    {
+        yield 'campo api no when' => ["integration s {\n  from A.l as x\n  to A.c;\n  when x.api == 1;\n}"];
+        yield 'campo integration no map' => ["integration s {\n  from A.l as x;\n  to A.c\n  map { n: int = x.integration; }\n}"];
+    }
+
+    /**
      * Verifica que a SyntaxException é uma CompilerException e expõe a linha
      * e a coluna do primeiro erro no arquivo-fonte.
      *

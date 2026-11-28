@@ -113,7 +113,7 @@ final class MainScriptTest extends TestCase
         self::assertSame(Application::EXIT_SUCCESS, $result['exitCode'], $result['stderr']);
         self::assertSame('', $result['stderr']);
         self::assertStringContainsString('Compilação concluída', $result['stdout']);
-        self::assertStringContainsString('output/' . basename($paths['output']), $result['stdout']);
+        self::assertStringContainsString('output' . DIRECTORY_SEPARATOR . basename($paths['output']), $result['stdout']);
         self::assertFileExists($paths['output']);
 
         $lint = $this->runLint($paths['output']);
