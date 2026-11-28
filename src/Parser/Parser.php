@@ -942,17 +942,19 @@ final class Parser
     /**
      * Recuperação de erros em modo pânico: descarta tokens até o início da
      * próxima declaração de nível superior ("api" ou "integration") ou até o
-     * EOF. Como essas palavras reservadas só ocorrem no início de declarações,
-     * são pontos de sincronização seguros.
+     * EOF. Depois de "." essas palavras são nomes de campo (ex.: x.api), não
+     * início de declaração, e por isso não servem de ponto de sincronização.
      *
      * @return void
      */
     private function synchronize(): void
     {
-        while (!$this->check(TokenType::Eof)
-            && !$this->check(TokenType::Api)
-            && !$this->check(TokenType::Integration)
-        ) {
+        while (!$this->check(TokenType::Eof)) {
+            $afterDot = $this->position > 0 && $this->tokens[$this->position - 1]->type === TokenType::Dot;
+            if (!$afterDot && ($this->check(TokenType::Api) || $this->check(TokenType::Integration))) {
+                return;
+            }
+
             $this->advance();
         }
     }
