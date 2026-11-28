@@ -643,4 +643,4 @@ confere que o Parser produz exatamente esses erros.
 | G10 | ~~Sintaxe definitiva dos comentários~~ — `//`, `#` e `/* */` (ver [`tokens.md`](tokens.md), seção 4) | Lexer (T5) |
 | G11 | ~~Sequências de escape aceitas em `TEXTO`~~ — `\"`, `\\`, `\n` e `\t`; qualquer outra é erro léxico | Lexer |
 | G12 | ~~Verificação semântica (referências, duplicidades, aridade de funções)~~ — implementada no `Analyzer` ([`semantic-analysis.md`](semantic-analysis.md)) | Grupo (P2) |
-| G13 | Lista de funções embutidas (provisória no `Analyzer`: `env`, `upper`, `lower`, `now`; o Gerador deve confirmar) | Gerador |
+| G13 | ~~Lista de funções embutidas~~ — apenas `env("NOME")`, com texto literal ([`semantic-analysis.md`](semantic-analysis.md), S13) | Gerador |

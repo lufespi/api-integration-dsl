@@ -4,8 +4,8 @@
 > Inclui as correções pós-code review (URLs, inteiros grandes, sanitização de
 > logs, valores não finitos).
 > Responsável: integrante do **Gerador de código**. Consome a AST definida em
-> [`ast-contract.md`](ast-contract.md). A integração na CLI é feita por outro
-> integrante e **ainda não foi realizada**.
+> [`ast-contract.md`](ast-contract.md). Integrado à CLI, depois do Analisador
+> semântico ([`semantic-analysis.md`](semantic-analysis.md)).
 >
 > As decisões marcadas como **provisórias** (seção 7) são do Gerador e
 > aguardam validação do grupo.
@@ -27,13 +27,14 @@ $php = (new PhpGenerator())->generate($program);   // App\Ast\Program -> string
 - Problemas que impediriam uma geração segura lançam
   `App\Generator\GenerationException` (seção 4).
 
-Uso previsto na CLI (a cargo da integração do pipeline):
+Uso na CLI (`src/Cli/Application.php`), que grava o resultado em
+`output/<nome-do-arquivo>.php`:
 
 ```php
 $tokens  = (new Lexer($source))->tokenize();
 $program = (new Parser($tokens))->parse();
+$program = (new Analyzer())->analyze($program);        // SemanticException em caso de erro
 $php     = (new PhpGenerator())->generate($program);   // GenerationException em caso de erro
-file_put_contents('output/programa.php', $php);
 ```
 
 ## 2. Arquitetura
@@ -257,9 +258,13 @@ Como os demais erros de runtime, esses afetam só o registro em questão.
 
 ## 4. Verificações feitas na geração
 
-O Parser garante a sintaxe; o Gerador faz **apenas** as verificações
-semânticas necessárias para gerar código seguro (a decisão sobre um
-`Analyzer` separado continua pendente — P2). Todas lançam
+O Parser garante a sintaxe e o `Analyzer` as regras semânticas
+([`semantic-analysis.md`](semantic-analysis.md)); no pipeline da CLI,
+referências, duplicidades, alias e funções inválidas já chegam como erro
+semântico. O Gerador mantém as verificações abaixo de forma **defensiva**
+(para ASTs montadas sem o Analyzer) e é o único a verificar as restrições
+próprias da geração (métodos HTTP por posição, parâmetros de caminho, URLs,
+nomes de cabeçalho e literais não finitos). Todas lançam
 `GenerationException`, com a posição do nó:
 
 ```text
@@ -331,7 +336,7 @@ Sujeitas à validação do grupo; nenhuma exigiu alterar a AST ou a gramática.
 | # | Questão | Decisão provisória |
 |---|---|---|
 | P6 | `mappings` vazio | Envia o registro de origem **inteiro**, com os mesmos campos e valores; a representação numérica pode mudar (inteiros acima de `PHP_INT_MAX` viram texto, decimais são reserializados pelo PHP). |
-| P7 | Funções embutidas | Apenas `env("NOME")`, com nome literal. Outras (`upper`, `lower`, `now`...) são `GenerationException` até aprovação. |
+| P7 | Funções embutidas | Apenas `env("NOME")`, com nome literal; o `Analyzer` usa a mesma lista (`Analyzer::DEFAULT_FUNCTIONS`) e rejeita as demais (`upper`, `lower`, `now`...) como erro semântico. |
 | P8 | Parâmetros de caminho | Não suportados: `{...}` em endpoint **usado** é `GenerationException`. Query string fixa no caminho é aceita. |
 | P9 | Respostas em lista | Lista → item a item; objeto → um registro; outros formatos → erro. |
 | P11 | `+` com textos | Concatenação se ao menos um operando for texto **em runtime**; soma se ambos forem números; outros casos → erro. |
@@ -360,4 +365,3 @@ Sujeitas à validação do grupo; nenhuma exigiu alterar a AST ou a gramática.
   byte a byte idêntico ao recebido (espaços, ordem de escape e formato numérico podem mudar).
 - A compatibilidade de `tests/Unit/AutoloadTest.php` com Windows foi corrigida
   por inspeção (normalização de caminhos), sem execução em Windows.
-- A integração do Gerador na CLI (`main.php`) ainda não foi feita.

@@ -18,6 +18,7 @@ use App\Exceptions\CompilerException;
  *   CompilerException
  *   ├── LexicalException
  *   ├── SyntaxException
+ *   ├── SemanticException
  *   └── GenerationException
  */
 final class GenerationException extends CompilerException

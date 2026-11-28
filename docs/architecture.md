@@ -33,8 +33,11 @@ Arquivo PHP gerado (output/)
 ```
 
 A **CLI** (`main.php` + `src/Cli`) coordena o pipeline: lê o arquivo, chama
-cada etapa em ordem, grava o resultado em `output/` e traduz erros em mensagens
-e códigos de saída.
+cada etapa em ordem, grava o resultado em `output/<nome-do-arquivo>.php` e
+traduz erros em mensagens e códigos de saída. A gravação é atômica
+(temporário + renomeação); em caso de erro nenhum arquivo é gerado e um
+`output/<nome>.php` de uma compilação anterior é removido. A CLI não executa o
+PHP gerado nem faz requisições HTTP.
 
 Cada etapa conhece apenas a saída da etapa anterior. O Generator não lê tokens
 nem texto-fonte; o Parser não gera código. Isso permite que cada integrante
@@ -106,14 +109,13 @@ CompilerException                 (base, contém linha/coluna opcionais)   ✅ i
   erros do programa `.dsl`: o Parser lança `InvalidArgumentException` ou
   `LogicException`, tratadas pela CLI como erro interno.
 
-Códigos de saída da CLI (já implementados em `App\Cli\Application`):
+Códigos de saída da CLI (`App\Cli\Application`):
 
 | Código | Significado |
 |---|---|
-| 0 | Sucesso ou ajuda exibida |
-| 1 | Erro de compilação (léxico/sintático) — reservado para a integração |
+| 0 | Compilação concluída ou ajuda exibida |
+| 1 | Erro de compilação (qualquer `CompilerException`: léxico, sintático, semântico ou de geração) ou falha de leitura/escrita |
 | 2 | Uso incorreto ou arquivo de entrada inválido |
-| 3 | Funcionalidade ainda não integrada |
 
 ## 5. Gerador de código
 
@@ -121,7 +123,7 @@ Códigos de saída da CLI (já implementados em `App\Cli\Application`):
 verificações e decisões provisórias em [`generator.md`](generator.md).
 Conforme previsto, o gerador deve:
 
-1. Receber uma AST válida (já verificada pelo Parser).
+1. Receber uma AST válida (já verificada pelo Parser e pelo Analyzer).
 2. Identificar as APIs e os endpoints envolvidos em cada integração.
 3. Produzir código PHP que utilize a extensão cURL.
 4. Realizar a requisição HTTP ao endpoint de origem.
@@ -203,7 +205,7 @@ apenas carrega o autoload e delega a essa classe.
 | D2 | Lexer e Parser escritos à mão, sem bibliotecas de parsing | Objetivo acadêmico é implementar as análises |
 | D3 | CLI em classe testável (`src/Cli`) | Testes sem processos; `main.php` mínimo |
 | D4 | Códigos de saída distintos por tipo de falha | Facilita testes e scripts |
-| D5 | CLI não simula compilação enquanto o pipeline não existe | Evitar resultados enganosos |
+| D5 | CLI não simula compilação: sem `output/<nome>.php` em caso de erro, e o arquivo de uma compilação anterior é removido | Evitar resultados enganosos |
 | D6 | PHPUnit 12 + plataforma fixada em PHP 8.3 | PHPUnit 13 exige PHP 8.4 |
 | D7 | Finais de linha LF (`.gitattributes`) | Linha/coluna de erros iguais em Windows e Linux |
 | D8 | Desenvolvimento 100% via Docker (PHP, Composer, PHPUnit) | Mesmas versões para os quatro integrantes, em Windows e Linux |
@@ -214,3 +216,4 @@ apenas carrega o autoload e delega a essa classe.
 | D13 | AST em classes `readonly` com `toArray()` | Tipagem forte para o Generator, sem perder o formato de arrays proposto ([`ast-contract.md`](ast-contract.md)) |
 | D14 | Contrato de tokens (`Token`, `TokenType`) fixado em `src/Lexer/` antes do Lexer | Permitir desenvolver e testar o Parser em paralelo; com o Lexer pronto, os testes do Parser passaram a usá-lo |
 | D15 | Análise semântica em etapa própria (`Analyzer`) entre Parser e Generator, coletando todos os erros | O Generator assume uma AST com significado válido; erros do programa saem com linha e coluna, não como falhas na geração ([`semantic-analysis.md`](semantic-analysis.md)) |
+| D16 | Funções embutidas do Analyzer iguais às do Generator (só `env("NOME")`); o Generator mantém suas verificações defensivas | Uma função aceita na análise nunca falha só na geração; restrições próprias da geração (métodos HTTP, URLs) continuam no Generator |
